@@ -2,7 +2,7 @@ import pytest
 
 from conftest import load_strategy_class
 
-STRATEGIES = ["EmaRsiStrategy"]
+STRATEGIES = ["EmaRsiStrategy", "RsiMeanRevertStrategy"]
 
 
 @pytest.fixture(params=STRATEGIES)
