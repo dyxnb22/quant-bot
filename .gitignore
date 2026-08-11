@@ -1,0 +1,19 @@
+# 环境与依赖
+.venv/
+__pycache__/
+*.pyc
+
+# 密钥（绝不入库）
+.env
+
+# Freqtrade 运行产物（体积大 / 可再生）
+user_data/data/
+user_data/backtest_results/
+user_data/hyperopt_results/
+user_data/logs/
+user_data/plot/
+user_data/db*.sqlite*
+*.log
+
+# 系统文件
+.DS_Store
