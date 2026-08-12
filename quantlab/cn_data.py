@@ -77,21 +77,24 @@ FIELDS = ("close", "volume", "turn", "pe", "pb", "ps")
 QUERY_FIELDS = "date,close,volume,turn,peTTM,pbMRQ,psTTM"
 
 
-def _save(frames: dict) -> None:
-    CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+def _save(frames: dict, out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
     for field in FIELDS:
         (pd.DataFrame(frames[field]).sort_index().reset_index()
-         .to_feather(CN_DATA_DIR / f"{field}.feather"))
+         .to_feather(out_dir / f"{field}.feather"))
 
 
-def download_cn_daily(tickers: list[str], years: int = 4) -> Path:
+def download_cn_daily(tickers: list[str], years: int = 4,
+                      out_dir: Path | None = None) -> Path:
+    out_dir = out_dir or CN_DATA_DIR
     start = (date.today() - timedelta(days=365 * years)).isoformat()
     end = date.today().isoformat()
     frames = {field: {} for field in FIELDS}
-    if all((CN_DATA_DIR / f"{f}.feather").exists() for f in FIELDS):
-        existing = load_cn_daily()
+    if all((out_dir / f"{f}.feather").exists() for f in FIELDS):
         for field in FIELDS:
-            frames[field] = {c: existing[field][c] for c in existing[field].columns}
+            df = pd.read_feather(out_dir / f"{field}.feather")
+            df = df.set_index(df.columns[0])
+            frames[field] = {c: df[c] for c in df.columns}
         print(f"  断点续传: 已有 {len(frames['close'])} 个标的", flush=True)
     pending = [t for t in tickers if t not in frames["close"]]
     failed = []
@@ -123,13 +126,13 @@ def download_cn_daily(tickers: list[str], years: int = 4) -> Path:
         for field, column in zip(FIELDS, ("close", "volume", "turn", "peTTM", "pbMRQ", "psTTM")):
             frames[field][ticker] = pd.to_numeric(frame[column], errors="coerce")
         if i % 25 == 0:
-            _save(frames)
+            _save(frames, out_dir)
             print(f"  已下载 {i}/{len(pending)}（增量已落盘）", flush=True)
         time.sleep(0.4)  # 礼貌间隔：降低触发服务端限流的概率（2026-08-12 实测被限速）
-    _save(frames)
+    _save(frames, out_dir)
     if failed:
         print(f"  下载失败 {len(failed)} 个: {failed[:10]}", flush=True)
-    return CN_DATA_DIR
+    return out_dir
 
 
 def fetch_industry() -> pd.DataFrame:
@@ -174,12 +177,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="下载沪深 300 日频数据（baostock）")
     parser.add_argument("--years", type=int, default=10)
     parser.add_argument("--refresh", action="store_true",
-                        help="删除现有行情后全量重下（月度更新用）")
+                        help="staging 全量重下 → 校验 → 原子切换（旧数据全程可用）")
     args = parser.parse_args()
+    staging = CN_DATA_DIR / "staging"
+    out_dir = staging if args.refresh else CN_DATA_DIR
     if args.refresh:
-        for name in FIELDS:
-            (CN_DATA_DIR / f"{name}.feather").unlink(missing_ok=True)
-        print("已清除现有行情缓存（--refresh）", flush=True)
+        print(f"原子刷新模式：下载至 {staging}，校验通过后切换", flush=True)
     login = bs.login()
     if login.error_code != "0":
         print(f"baostock 登录失败: {login.error_msg}")
@@ -196,9 +199,20 @@ def main() -> int:
             CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
             membership.to_feather(membership_file)
         tickers = sorted(membership["ticker"].unique())
-        print(f"股池: 点时成分并集 {len(tickers)} 个标的"
-              f"（{len(month_ends)} 期快照，消除'未来入选'泄漏）", flush=True)
-        download_cn_daily(tickers, years=args.years)
+        print(f"股池: 点时成分并集 {len(tickers)} 个标的", flush=True)
+        download_cn_daily(tickers, years=args.years, out_dir=out_dir)
+        if args.refresh:
+            # 校验通过才切换（逐文件 os.replace 原子替换），否则保留旧数据
+            staged = pd.read_feather(staging / "close.feather")
+            coverage = (staged.shape[1] - 1) / len(tickers)
+            if coverage < 0.9:
+                print(f"校验失败：staging 覆盖率 {coverage:.0%} < 90%，不切换（旧数据保留）")
+                return 1
+            import os
+            for name in FIELDS:
+                os.replace(staging / f"{name}.feather", CN_DATA_DIR / f"{name}.feather")
+            staging.rmdir()
+            print(f"校验通过（覆盖率 {coverage:.0%}），已原子切换", flush=True)
     finally:
         bs.logout()
     close = load_cn_daily()["close"]

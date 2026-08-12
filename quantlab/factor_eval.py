@@ -178,7 +178,8 @@ def main() -> int:
     rows, verdicts = run_family(data, membership_mask,
                                 only_factors=args.factors,
                                 n_trials_override=args.n_trials)
-    report = render(label, note, rows, verdicts)
+    from quantlab.provenance import stamp
+    report = render(label, note, rows, verdicts) + f"\n\n---\n溯源: {stamp()}"
     target.write_text(report + "\n")
     print(report)
     print(f"\n报告: {target}")

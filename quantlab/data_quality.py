@@ -8,7 +8,7 @@ import argparse
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+from pathlib import Path  # noqa: F401
 
 import pandas as pd
 
@@ -73,8 +73,46 @@ def check_ohlcv(df: pd.DataFrame, timeframe: str, now=None,
     return report
 
 
+EQUITY_STALENESS_DAYS = 40   # 股市月度研究节奏
+CN_MIN_COVERAGE = 0.90       # close 列数须覆盖点时成分并集的比例
+US_MIN_COLUMNS = 400
+
+
+def check_equity_data() -> bool:
+    """CN/US 股市数据完整性：universe 覆盖、新鲜度。返回是否全部通过。"""
+    ok = True
+    now = datetime.now()
+
+    cn_dir = PROJECT_DIR / "user_data" / "data" / "cn"
+    membership = cn_dir / "membership.feather"
+    close_file = cn_dir / "close.feather"
+    if membership.exists() and close_file.exists():
+        expected = pd.read_feather(membership)["ticker"].nunique()
+        close = pd.read_feather(close_file)
+        coverage = (close.shape[1] - 1) / expected
+        age_days = (now - pd.Timestamp(close.iloc[-1, 0])).days
+        good = coverage >= CN_MIN_COVERAGE and age_days <= EQUITY_STALENESS_DAYS
+        print(f"[{'OK ' if good else 'FAIL'}] cn/close: {close.shape[1]-1}/{expected} "
+              f"标的（覆盖 {coverage:.0%}，要求 ≥{CN_MIN_COVERAGE:.0%}），"
+              f"最后交易日 {age_days} 天前")
+        ok = ok and good
+    elif close_file.exists() or membership.exists():
+        print("[FAIL] cn: 数据文件不完整（membership 与 close 须同时存在）")
+        ok = False
+
+    us_close = PROJECT_DIR / "user_data" / "data" / "us" / "close.feather"
+    if us_close.exists():
+        close = pd.read_feather(us_close)
+        age_days = (now - pd.Timestamp(close.iloc[-1, 0])).days
+        good = close.shape[1] - 1 >= US_MIN_COLUMNS and age_days <= EQUITY_STALENESS_DAYS
+        print(f"[{'OK ' if good else 'FAIL'}] us/close: {close.shape[1]-1} 标的"
+              f"（要求 ≥{US_MIN_COLUMNS}），最后交易日 {age_days} 天前")
+        ok = ok and good
+    return ok
+
+
 def main() -> int:
-    parser = argparse.ArgumentParser(description="检查已下载 K 线的数据质量")
+    parser = argparse.ArgumentParser(description="检查已下载数据的质量（币市 K 线 + 股市面板）")
     parser.add_argument("--max-age-hours", type=float, default=48.0)
     args = parser.parse_args()
 
@@ -96,6 +134,9 @@ def main() -> int:
         for message in report.warnings:
             print(f"       ! {message}")
         failed = failed or not report.ok
+
+    if not check_equity_data():
+        failed = True
     return 1 if failed else 0
 
 

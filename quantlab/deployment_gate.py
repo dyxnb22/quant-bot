@@ -107,8 +107,9 @@ def main() -> int:
                f"费用合计 {base['total_fees']:.0f} 元，容量峰值 {base['capacity_peak']:.1%}，"
                f"禁买 {base['blocked_buys']} / 禁卖 {base['blocked_sells']} 次）；"
                f"基准 = 点时股池等权（指数基准待接入）")
+    from quantlab.provenance import stamp
     rows = evaluate_gate(metrics)
-    REPORT.write_text(render(rows, context) + "\n")
+    REPORT.write_text(render(rows, context) + f"\n\n---\n溯源: {stamp()}\n")
     print(render(rows, context))
     print(f"\n报告: {REPORT}")
     return 0
