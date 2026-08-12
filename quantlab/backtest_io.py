@@ -9,14 +9,19 @@ import zipfile
 from pathlib import Path
 
 
+def load_export_zip(zip_path: Path) -> dict:
+    """读取单个回测导出 zip 的主结果 json。"""
+    zip_path = Path(zip_path)
+    with zipfile.ZipFile(zip_path) as archive:
+        with archive.open(f"{zip_path.stem}.json") as fh:
+            return json.load(fh)
+
+
 def _load_newest_export(results_dir: Path) -> dict:
     zips = sorted(results_dir.glob("*.zip"), key=lambda p: p.stat().st_mtime)
     if not zips:
         raise FileNotFoundError(f"{results_dir} 中没有回测导出 zip")
-    zip_path = zips[-1]
-    with zipfile.ZipFile(zip_path) as archive:
-        with archive.open(f"{zip_path.stem}.json") as fh:
-            return json.load(fh)
+    return load_export_zip(zips[-1])
 
 
 def read_backtest_metrics(results_dir, strategy: str) -> dict:

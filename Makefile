@@ -57,6 +57,9 @@ health-install: ## 安装 15 分钟定时巡检（launchd + 本地通知）
 health-uninstall: ## 卸载定时巡检
 	./scripts/health_uninstall.sh
 
+review: ## LLM 交易复盘（ZIP/STRATEGY 可覆盖，需 DEEPSEEK_API_KEY）
+	.venv/bin/python -m quantlab.trade_review $(if $(ZIP),--zip $(ZIP)) --strategy $(or $(STRATEGY),EmaRsiStrategy)
+
 check: ## 一键体检：测试 + 风险审计 + 数据质量
 	.venv/bin/python -m pytest tests/ -q
 	.venv/bin/python -m quantlab.risk_policy

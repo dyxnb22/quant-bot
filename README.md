@@ -12,6 +12,7 @@
 2. **风险政策代码化**：止损边界、仓位上限、必备 protections 写成可执行审计（`quantlab/risk_policy.py`）；**bot 启动前强制审计，不过不起**。实证价值：hyperopt 曾把止损优化到 -23.4%，walk-forward 十个窗口中七个试图越界——优化器没有风险观，审计是常设机制。
 3. **数据质量保障**：`make data-check` 检查缺口/重复/OHLC 矛盾/新鲜度，坏数据主动暴露而不是默默产出错误结论。
 4. **自动巡检告警**：launchd 每 15 分钟巡检服务/进程/API/日志心跳，异常直接弹 macOS 通知，无需任何外部服务。
+5. **LLM 复盘助手**：`make review` 把回测交易记录聚合后交给 DeepSeek 做归因分析，产出可检验的改进假设（`docs/results/05-llm-trade-review.md`）。**方法论边界**：LLM 只做历史交易的复盘归因，不做"LLM 对历史 K 线的决策回测"——主流模型训练语料覆盖历史行情，那种回测是开卷考试（数据污染），成绩不可外推；LLM-in-loop 唯一干净的检验方式是接入 dry-run 做前向测试。
 
 预期管理：当前基线策略经 10 窗口 walk-forward 验证**无泛化能力**（OOS 拼接 -1.19%，详见 `docs/results/03-walk-forward.md`），价值在承载方法论。回测好看 ≠ 实盘赚钱，本仓库用自己的数据证明了这一点。
 
@@ -33,7 +34,7 @@ FreqUI 监控：浏览器打开 `http://127.0.0.1:8080`（账号密码见 `.env`
 ## 日常工作流
 
 1. 改动任何策略/配置后：`make check`（全绿才继续）。
-2. 策略研究：`make backtest` 快速对比 → `make wf` 出上线依据（只看 OOS 拼接数字）。
+2. 策略研究：`make backtest` 快速对比 → `make review` 让 LLM 归因出假设 → `make wf` 出上线依据（只看 OOS 拼接数字）。
 3. 数据维护：每周 `make data && make data-check`。
 4. 运行观察：`make bot-status` / `make log`；巡检告警自动弹通知。
 5. 停机：`make bot-stop`（连同 launchd 服务一起卸载）。
