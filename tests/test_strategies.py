@@ -6,8 +6,8 @@ from conftest import load_strategy_class
 from quantlab.strategy_loader import discover_strategies
 
 STRATEGIES = discover_strategies()
-# 带体制闸门的策略在通用合成夹具上可能无入场信号，由各自专项测试覆盖入场行为
-GATED_STRATEGIES = {"EmaRsiTrendStrategy", "EmaRsiH4FastRegime"}
+# 带体制闸门/外部数据依赖的策略在通用合成夹具上可能无入场信号，由各自专项测试覆盖
+GATED_STRATEGIES = {"EmaRsiTrendStrategy", "EmaRsiH4FastRegime", "FundingRevertStrategy"}
 
 
 @pytest.fixture
@@ -116,6 +116,41 @@ def test_h4_regime_gate(ohlcv_df):
     df = s.populate_entry_trend(df, meta)
     entries = df[df["enter_long"] == 1]
     assert (entries["close"] > entries["ema_regime"]).all()
+
+
+def test_funding_revert_entry_exit(tmp_path, ohlcv_df):
+    """资金费率极端负值入场、回正出场；无数据时安全不交易。"""
+    import numpy as np
+    import pandas as pd
+    cls = load_strategy_class("FundingRevertStrategy")
+
+    # 合成费率：8h 一条，覆盖夹具时间范围，中段深度负值
+    dates = pd.date_range("2024-01-01", periods=80, freq="8h", tz="UTC")
+    rates = np.full(80, 0.0001)
+    rates[30:40] = -0.005
+    funding_dir = tmp_path / "funding"
+    funding_dir.mkdir()
+    pd.DataFrame({"date": dates, "funding_rate": rates}).to_feather(
+        funding_dir / "BTC_USDT-funding.feather")
+
+    strategy = cls(config={"stake_currency": "USDT", "runmode": "backtest"})
+    strategy.funding_dir = funding_dir
+    meta = {"pair": "BTC/USDT"}
+    df = strategy.populate_indicators(ohlcv_df.copy(), meta)
+    df = strategy.populate_entry_trend(df, meta)
+    df = strategy.populate_exit_trend(df, meta)
+    entries = df[df["enter_long"] == 1]
+    assert len(entries) > 0, "深度负费率区间应触发入场"
+    assert (entries["funding_rate"] <= -0.001).all()
+    exits = df[df["exit_long"] == 1]
+    assert (exits["funding_rate"] >= 0).all()
+
+    # 无费率文件 → 全 NaN → 永不入场（安全降级）
+    strategy2 = cls(config={"stake_currency": "USDT", "runmode": "backtest"})
+    strategy2.funding_dir = tmp_path / "empty"
+    df2 = strategy2.populate_indicators(ohlcv_df.copy(), meta)
+    df2 = strategy2.populate_entry_trend(df2, meta)
+    assert df2["enter_long"].fillna(0).sum() == 0
 
 
 def test_no_lookahead_bias(strategy, ohlcv_df):
