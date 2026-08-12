@@ -47,10 +47,27 @@ def _months(start: tuple, end: tuple):
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
 
 
+# 静态桶直连（0.2s vs 经代理 1.4s，且代理在并发连接下会劣化——2026-08-12 实测）
+_DIRECT = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _get_direct(url: str, retries: int = 3, timeout: int = 15) -> bytes:
+    for attempt in range(retries):
+        try:
+            with _DIRECT.open(url, timeout=timeout) as response:
+                return response.read()
+        except urllib.error.HTTPError:
+            raise
+        except (urllib.error.URLError, OSError):
+            if attempt == retries - 1:
+                raise
+    raise RuntimeError("unreachable")
+
+
 def _fetch_month(symbol: str, year: int, month: int) -> list[tuple]:
     url = KLINE_URL.format(symbol=symbol, year=year, month=month)
     try:
-        payload = _get(url, retries=2)
+        payload = _get_direct(url)
     except urllib.error.HTTPError as error:
         if error.code == 404:
             return []
