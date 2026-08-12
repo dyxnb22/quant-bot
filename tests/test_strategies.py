@@ -124,10 +124,11 @@ def test_funding_revert_entry_exit(tmp_path, ohlcv_df):
     import pandas as pd
     cls = load_strategy_class("FundingRevertStrategy")
 
-    # 合成费率：8h 一条，覆盖夹具时间范围，中段深度负值
+    # 合成费率：8h 一条，覆盖夹具时间范围，带噪声（滚动 std 不为零），中段深度负值
+    rng = np.random.default_rng(3)
     dates = pd.date_range("2024-01-01", periods=80, freq="8h", tz="UTC")
-    rates = np.full(80, 0.0001)
-    rates[30:40] = -0.005
+    rates = rng.normal(0.0001, 0.00003, 80)
+    rates[40:50] = -0.005
     funding_dir = tmp_path / "funding"
     funding_dir.mkdir()
     pd.DataFrame({"date": dates, "funding_rate": rates}).to_feather(
@@ -140,10 +141,10 @@ def test_funding_revert_entry_exit(tmp_path, ohlcv_df):
     df = strategy.populate_entry_trend(df, meta)
     df = strategy.populate_exit_trend(df, meta)
     entries = df[df["enter_long"] == 1]
-    assert len(entries) > 0, "深度负费率区间应触发入场"
-    assert (entries["funding_rate"] <= -0.001).all()
+    assert len(entries) > 0, "相对极端负费率区间应触发入场"
+    assert (entries["funding_z"] <= -1.5).all()
     exits = df[df["exit_long"] == 1]
-    assert (exits["funding_rate"] >= 0).all()
+    assert (exits["funding_z"] >= 0).all()
 
     # 无费率文件 → 全 NaN → 永不入场（安全降级）
     strategy2 = cls(config={"stake_currency": "USDT", "runmode": "backtest"})

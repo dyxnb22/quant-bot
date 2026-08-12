@@ -38,7 +38,12 @@ def run_window(index: int, window, strategy: str, strategy_dir: Path,
         "--hyperopt-loss", "SharpeHyperOptLoss", "--spaces", "buy", "roi", "stoploss",
         "--timerange", window.is_timerange, "-e", str(epochs),
     ])
-    shutil.copy(strategy_dir / f"{strategy}.json", out_dir / f"window_{index:02d}_params.json")
+    params_file = strategy_dir / f"{strategy}.json"
+    if params_file.exists():
+        shutil.copy(params_file, out_dir / f"window_{index:02d}_params.json")
+    else:
+        # hyperopt 全部 epoch 零交易时不产出参数文件——用类默认参数继续（如实反映"该窗口无信号"）
+        print("    （hyperopt 未产出参数：样本内零交易，沿用类默认参数）", flush=True)
     effective = load_effective_params(strategy, strategy_dir)
     row = {
         "window": index,

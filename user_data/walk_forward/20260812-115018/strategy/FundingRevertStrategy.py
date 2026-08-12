@@ -1,11 +1,7 @@
 """资金费率反转策略：第一个 K 线之外的信息源（07 号研究批次）。
 
-论点（预登记）：资金费率相对极端负值 = 杠杆空头拥挤 = 现货逆向做多机会；
-情绪回归常态（z ≥ 0）= 离场。阈值可优化，论点不可优化。
-
-"极端"用滚动 z-score（90 期 ≈ 30 天）定义而非绝对 bps——分布统计显示
-绝对阈值跨时代失效（BTC 2023-2026 全期最小仅 -1.5bps，而 2021-2022 年
--30bps 常见）。z 逐期只用截至该期的历史，无未来函数（tests/test_funding.py 锁死）。
+论点（预登记）：永续资金费率极端负值 = 杠杆空头拥挤 = 现货逆向做多机会；
+费率回正 = 情绪修复 = 离场。阈值可优化，论点不可优化。
 
 数据口径：信号来自 Binance 永续（全球最大永续市场）+ OKX 尾部补齐，
 执行于 OKX 现货。费率文件缺失时安全降级为永不入场。
@@ -20,14 +16,13 @@ from pandas import DataFrame
 from freqtrade.strategy import IntParameter, IStrategy
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from quantlab.funding import (FUNDING_DIR, attach_funding, funding_file,  # noqa: E402
-                              funding_zscore)
+from quantlab.funding import FUNDING_DIR, attach_funding, funding_file  # noqa: E402
 
 
 class FundingRevertStrategy(IStrategy):
     INTERFACE_VERSION = 3
 
-    REQUIRED_INDICATOR_COLUMNS = ("funding_rate", "funding_z")
+    REQUIRED_INDICATOR_COLUMNS = ("funding_rate",)
 
     timeframe = "1h"
     can_short = False
@@ -38,8 +33,8 @@ class FundingRevertStrategy(IStrategy):
     stoploss = -0.08
     trailing_stop = False
 
-    # 入场阈值：funding_z ≤ buy_funding_z/10（即 -3.5 ~ -1.5 个滚动标准差）
-    buy_funding_z = IntParameter(-35, -15, default=-20, space="buy", optimize=True)
+    # 入场阈值：费率 ≤ buy_funding_bps/10000（每 8 小时），负得越深越极端
+    buy_funding_bps = IntParameter(-30, -2, default=-10, space="buy", optimize=True)
 
     funding_dir = FUNDING_DIR  # 测试可注入
 
@@ -73,14 +68,13 @@ class FundingRevertStrategy(IStrategy):
         funding = self._load_funding(metadata["pair"])
         if funding is None or funding.empty:
             dataframe["funding_rate"] = float("nan")
-            dataframe["funding_z"] = float("nan")
             return dataframe
-        return attach_funding(dataframe, funding_zscore(funding))
+        return attach_funding(dataframe, funding)
 
     def populate_entry_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        threshold = self.buy_funding_z.value / 10
+        threshold = self.buy_funding_bps.value / 10000
         dataframe.loc[
-            (dataframe["funding_z"] <= threshold)
+            (dataframe["funding_rate"] <= threshold)
             & (dataframe["volume"] > 0),
             "enter_long",
         ] = 1
@@ -88,7 +82,7 @@ class FundingRevertStrategy(IStrategy):
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe.loc[
-            dataframe["funding_z"] >= 0,
+            dataframe["funding_rate"] >= 0,
             "exit_long",
         ] = 1
         return dataframe

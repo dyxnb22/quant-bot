@@ -1,6 +1,26 @@
+import numpy as np
 import pandas as pd
 
-from quantlab.funding import attach_funding
+from quantlab.funding import attach_funding, funding_zscore
+
+
+def test_funding_zscore_no_lookahead_and_extremes():
+    """z-score 只用截至当期的历史；截断尾部不改变此前的 z 值。"""
+    n = 200
+    rng = np.random.default_rng(1)
+    rates = rng.normal(0.0001, 0.00005, n)
+    rates[150:160] = -0.0004  # 相对极端的负值段
+    funding = pd.DataFrame({
+        "date": pd.date_range("2024-01-01", periods=n, freq="8h", tz="UTC"),
+        "funding_rate": rates,
+    })
+    out = funding_zscore(funding, window=90, min_periods=30)
+    assert out["funding_z"].iloc[:29].isna().all(), "min_periods 之前应为 NaN"
+    assert out["funding_z"].iloc[150:160].min() < -2, "极端负值段应产生显著负 z"
+
+    truncated = funding_zscore(funding.iloc[:160], window=90, min_periods=30)
+    pd.testing.assert_series_equal(
+        out["funding_z"].iloc[:160], truncated["funding_z"], check_names=False)
 
 
 def test_attach_funding_no_lookahead():

@@ -34,11 +34,25 @@ OKX_URL = ("https://www.okx.com/api/v5/public/funding-rate-history"
 
 def attach_funding(candles: pd.DataFrame, funding: pd.DataFrame) -> pd.DataFrame:
     """为 K 线附加最近一次已结算的资金费率（backward 合并，无未来函数）。"""
+    columns = [c for c in ("date", "funding_rate", "funding_z") if c in funding.columns]
     return pd.merge_asof(
         candles.sort_values("date"),
-        funding[["date", "funding_rate"]].sort_values("date"),
+        funding[columns].sort_values("date"),
         on="date", direction="backward",
     )
+
+
+def funding_zscore(funding: pd.DataFrame, window: int = 90,
+                   min_periods: int = 30) -> pd.DataFrame:
+    """滚动 z-score 定义"相对极端"：每期只用截至该期的历史（无未来函数）。
+
+    绝对阈值会过时（2023-2026 年费率极少低于 -2bps，而 2021-2022 年常见），
+    相对分布的极端定义可跨时代自适应。
+    """
+    out = funding.copy()
+    rolling = out["funding_rate"].rolling(window, min_periods=min_periods)
+    out["funding_z"] = (out["funding_rate"] - rolling.mean()) / rolling.std()
+    return out
 
 
 def funding_file(pair: str) -> Path:
