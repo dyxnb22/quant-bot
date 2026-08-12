@@ -12,8 +12,8 @@
 
 ### 差距 ①（主攻）：Alpha 生产能力
 
-- [ ] A1. 日频截面回测引擎 `quantlab/cross_section.py`：rank IC、分层（quintile）组合收益、多空 spread、换手率、成本模型（bps/边），TDD
-- [ ] A2. 美股数据管道 `quantlab/us_data.py`：股池（S&P 500，尽力点时化并如实记录幸存者偏差残留）+ yfinance 日频批量下载 + 质量检查，落地 feather
+- [x] A1. 日频截面回测引擎 `quantlab/cross_section.py`：rank IC、分层（quintile）组合收益、多空 spread、换手率、成本模型（bps/边），TDD（2026-08-12）
+- [x] A2. 美股数据管道 `quantlab/us_data.py`：S&P 500 当前成分 + yfinance 日频批量下载（4 年 × 503 标的，覆盖率 99%），幸存者偏差已声明（2026-08-12；点时化见 D5）
 - [ ] A3. 第一批价格系因子：12-1 动量、1 月短反转、低波动、流动性（价值/质量因子需基本面数据，列入后续）
 - [ ] A4. 因子评估流水线：IC 时间序列 → 分层单调性 → 多空净收益（含成本）→ 统计检验（清单 ③）→ 截面版滚动 OOS
 - [ ] A5. 预登记部署标准（截面版）：进入 paper 验证需满足——OOS rank IC 均值 > 0 且 t 值显著（经多重检验校正）、多空净收益为正、分层单调
@@ -21,13 +21,13 @@
 
 ### 差距 ③（同步）：统计严谨性工具箱
 
-- [ ] S1. `quantlab/stats_tests.py`：deflated Sharpe ratio（含试验次数参数）、置换检验 p 值（IC/收益序列）、Benjamini-Hochberg 多重检验校正，TDD
+- [x] S1. `quantlab/stats_tests.py`：deflated Sharpe ratio（含试验次数参数）、置换检验 p 值（IC/收益序列）、Benjamini-Hochberg 多重检验校正，TDD（2026-08-12）
 - [ ] S2. 接入截面流水线：所有因子结论必须带校正后显著性
 - [ ] S3.（回补币市）对既有 8 管线结论做一次 DSR 复核，写入附录
 
 ### 差距 ②（按需）：数据资产
 
-- [ ] D1. 美股日频（随 A2 落地，免费源：yfinance；备选 Stooq）
+- [x] D1. 美股日频（随 A2 落地，yfinance，2026-08-12；管道冒烟见 `docs/results/08`）
 - [ ] D2. A 股日频搭车（AkShare，复用截面引擎，纯研究）
 - [ ] D3.（缓）币市微结构：Binance Vision aggTrades/清算/OI——仅在决定重启币市研究时投入
 - [ ] D4.（缓）WS 自录订单簿攒资产——同上

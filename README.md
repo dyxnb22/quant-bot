@@ -31,6 +31,13 @@ make health-install   # 安装 15 分钟定时巡检
 
 FreqUI 监控：浏览器打开 `http://127.0.0.1:8080`（账号密码见 `.env`）。
 
+美股截面研究（阶段 A 已就绪）：
+
+```bash
+make us-data     # 下载 S&P 500 日频数据（yfinance，免费）
+make us-smoke    # 12-1 动量端到端冒烟（IC/分层/多空/统计检验）
+```
+
 ## 日常工作流
 
 1. 改动任何策略/配置后：`make check`（全绿才继续）。

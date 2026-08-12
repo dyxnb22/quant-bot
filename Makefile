@@ -18,6 +18,12 @@ data: ## 下载/增量更新历史数据
 funding: ## 下载/更新资金费率历史（Binance 归档 + OKX 尾部）
 	.venv/bin/python -m quantlab.funding
 
+us-data: ## 下载 S&P 500 日频数据（YEARS 可覆盖，默认 4）
+	.venv/bin/python -m quantlab.us_data --years $(or $(YEARS),4)
+
+us-smoke: ## 美股截面管道冒烟（12-1 动量端到端）
+	.venv/bin/python -m quantlab.factors
+
 test: ## 运行策略单元测试
 	.venv/bin/python -m pytest tests/ -v
 
