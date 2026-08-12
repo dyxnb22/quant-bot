@@ -27,7 +27,7 @@ $CURL "$BASE/ping"; echo
 echo "--- 概览 ---"
 $CURL -u "$AUTH" "$BASE/show_config" | .venv/bin/python -c "import json,sys; c=json.load(sys.stdin); print('state:', c['state'], '| strategy:', c['strategy'], '| dry_run:', c['dry_run'])"
 echo "--- 收益 ---"
-$CURL -u "$AUTH" "$BASE/profit" | .venv/bin/python -c "import json,sys; p=json.load(sys.stdin); print('closed:', p['trade_count'], 'trades | profit:', round(p['profit_closed_coin'], 2), 'USDT | winrate:', round(p.get('winrate', 0) * 100, 1), '%')"
+$CURL -u "$AUTH" "$BASE/profit" | .venv/bin/python -c "import json,sys; p=json.load(sys.stdin); print('平仓:', p.get('closed_trade_count', 0), '笔 | 总交易:', p.get('trade_count', 0), '| 已实现:', round(p['profit_closed_coin'], 2), 'USDT | 胜率:', round(p.get('winrate', 0) * 100, 1), '%')"
 echo "--- 持仓 ---"
 $CURL -u "$AUTH" "$BASE/status" | .venv/bin/python -c "
 import json, sys

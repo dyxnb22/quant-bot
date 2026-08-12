@@ -72,6 +72,9 @@ bot-stop: ## 停止模拟盘并卸载 launchd 服务
 bot-status: ## 查看模拟盘状态（服务/进程/API/持仓/收益）
 	./scripts/bot_status.sh
 
+recon: ## 成交对账（dry-run 成交 vs 回测假设滑点）
+	.venv/bin/python -m quantlab.trade_recon
+
 log: ## 跟踪模拟盘日志
 	tail -f user_data/logs/freqtrade.log
 
