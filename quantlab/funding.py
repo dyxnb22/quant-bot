@@ -52,12 +52,26 @@ def _months(start: tuple, end: tuple):
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
 
 
+def _get(url: str, retries: int = 3) -> bytes:
+    """带退避重试的 GET（代理链路偶发 SSL 断连，重试是数据管道标配）。"""
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(
+                    urllib.request.Request(url, headers=UA), timeout=30) as response:
+                return response.read()
+        except urllib.error.HTTPError:
+            raise  # HTTP 状态码错误交给调用方（如 404）
+        except (urllib.error.URLError, OSError):
+            if attempt == retries - 1:
+                raise
+            time.sleep(2 * (attempt + 1))
+    raise RuntimeError("unreachable")
+
+
 def fetch_binance_month(symbol: str, year: int, month: int) -> pd.DataFrame:
     url = BINANCE_URL.format(symbol=symbol, year=year, month=month)
     try:
-        with urllib.request.urlopen(
-                urllib.request.Request(url, headers=UA), timeout=30) as response:
-            payload = response.read()
+        payload = _get(url)
     except urllib.error.HTTPError as error:
         if error.code == 404:  # 该月归档缺失（如标的尚未上市）
             return pd.DataFrame(columns=["date", "funding_rate"])
@@ -77,9 +91,7 @@ def fetch_okx_recent(pair: str) -> pd.DataFrame:
     frames, after = [], ""
     for _ in range(30):
         url = OKX_URL.format(inst=inst, after=after)
-        with urllib.request.urlopen(
-                urllib.request.Request(url, headers=UA), timeout=30) as response:
-            rows = json.load(response).get("data", [])
+        rows = json.loads(_get(url)).get("data", [])
         if not rows:
             break
         frames.append(pd.DataFrame({
