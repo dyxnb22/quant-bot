@@ -81,6 +81,43 @@ def test_trend_strategy_enters_in_uptrend(uptrend_df):
     assert df["enter_long"].sum() > 0
 
 
+def test_h1_tight_stoploss():
+    cls = load_strategy_class("EmaRsiH1TightStop")
+    assert cls.stoploss == -0.04
+
+
+def test_h2_time_cutoff():
+    from datetime import datetime, timedelta, timezone
+    from types import SimpleNamespace
+    cls = load_strategy_class("EmaRsiH2TimeExit")
+    s = cls(config={"stake_currency": "USDT", "runmode": "backtest"})
+    now = datetime(2026, 1, 2, tzinfo=timezone.utc)
+    old = SimpleNamespace(open_date_utc=now - timedelta(minutes=800))
+    fresh = SimpleNamespace(open_date_utc=now - timedelta(minutes=100))
+    assert s.custom_exit("BTC/USDT", old, now, 100.0, 0.01) == "time_cutoff"
+    assert s.custom_exit("BTC/USDT", old, now, 100.0, 0.05) is None
+    assert s.custom_exit("BTC/USDT", fresh, now, 100.0, 0.01) is None
+
+
+def test_h3_pair_specific_exit(ohlcv_df):
+    cls = load_strategy_class("EmaRsiH3PairSpecific")
+    s = cls(config={"stake_currency": "USDT", "runmode": "backtest"})
+    assert s.custom_exit("ETH/USDT", None, None, 100.0, 0.04) == "pair_roi"
+    assert s.custom_exit("BTC/USDT", None, None, 100.0, 0.04) is None
+    df = s.populate_indicators(ohlcv_df.copy(), {"pair": "ETH/USDT"})
+    assert "ema_fast2" in df.columns and "ema_slow2" in df.columns
+
+
+def test_h4_regime_gate(ohlcv_df):
+    cls = load_strategy_class("EmaRsiH4FastRegime")
+    s = cls(config={"stake_currency": "USDT", "runmode": "backtest"})
+    meta = {"pair": "BTC/USDT"}
+    df = s.populate_indicators(ohlcv_df.copy(), meta)
+    df = s.populate_entry_trend(df, meta)
+    entries = df[df["enter_long"] == 1]
+    assert (entries["close"] > entries["ema_regime"]).all()
+
+
 def test_no_lookahead_bias(strategy, ohlcv_df):
     """截断最后 50 根 K 线不应改变此前任何信号（未来函数检测）。"""
     meta = {"pair": "BTC/USDT"}
