@@ -75,6 +75,10 @@ bot-status: ## 查看模拟盘状态（服务/进程/API/持仓/收益）
 log: ## 跟踪模拟盘日志
 	tail -f user_data/logs/freqtrade.log
 
+ft-bias-check: ## Freqtrade 官方前视/递归偏差检查（策略变更后的发布闸门）
+	.venv/bin/freqtrade lookahead-analysis $(CFG) --config config/config.bias-check.json --strategy $(or $(STRATEGY),EmaRsiStrategy) --timerange 20250101-20260101
+	.venv/bin/freqtrade recursive-analysis $(CFG) --strategy $(or $(STRATEGY),EmaRsiStrategy) --timerange 20250101-20250401 --startup-candle 100 199 399 499 999
+
 audit: ## 风险政策审计（config + 策略生效参数）
 	.venv/bin/python -m quantlab.risk_policy
 

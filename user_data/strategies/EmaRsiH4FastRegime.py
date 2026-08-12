@@ -13,7 +13,7 @@ from EmaRsiStrategy import EmaRsiStrategy
 
 class EmaRsiH4FastRegime(EmaRsiStrategy):
     REQUIRED_INDICATOR_COLUMNS = ("ema_fast", "ema_slow", "rsi", "ema_regime")
-    startup_candle_count = 120
+    startup_candle_count = 220
 
     def populate_indicators(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
         dataframe = super().populate_indicators(dataframe, metadata)

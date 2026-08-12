@@ -18,7 +18,8 @@ class EmaRsiStrategy(IStrategy):
     timeframe = "1h"
     can_short = False
     process_only_new_candles = True
-    startup_candle_count = 60
+    # 200：freqtrade recursive-analysis 实测 60 根时 RSI 有 0.66% 递归方差，199+ 归零
+    startup_candle_count = 200
 
     # 随持仓时间递减的止盈目标（分钟: 收益率）
     minimal_roi = {"0": 0.10, "240": 0.05, "720": 0.02, "1440": 0}
