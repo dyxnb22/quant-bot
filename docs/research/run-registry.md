@@ -13,6 +13,7 @@
 | `com.quantbot.health` | 每 15 分钟 | 服务/进程/API/日志心跳巡检，连续 ≥2 次失败弹 macOS 通知 | `user_data/logs/health.log`（失败计数 `health_fail_streak`） |
 | `com.quantbot.brief` | 每天 09:00 | LLM 值班日报（状态+持仓+24h 行情 → 风险观察） | `user_data/logs/daily_brief/YYYY-MM-DD.md`（launchd 输出 `daily_brief/launchd.log`） |
 | `com.quantbot.cndownload` | 深夜 02:30（按需安装，成功后自卸载） | A 股行情断点续传下载 | 数据 `user_data/data/cn|cn500/`；日志 `user_data/logs/cn_download.log` |
+| `com.quantbot.cnfundamentals` | 深夜 02:30（按需安装，成功后自卸载） | A 股季频财报下载（点时 ROE，hs300→zz500） | 数据 `user_data/data/cn|cn500/fundamentals.feather`；日志 `user_data/logs/cn_fundamentals.log` |
 
 ### 手动（你启动的）
 
@@ -30,7 +31,7 @@
 |---|---|---|
 | `user_data/data/okx/` | 币市 1h/4h K 线（5 交易对） | `make daily`（增量）或 `make data` |
 | `user_data/data/cn/`、`cn500/` | A 股六字段日频面板 + 点时成分 + 指数 | 月度 `make cn-data-refresh` / `cn500-data-refresh`（或深夜任务） |
-| `user_data/data/us/` | 美股日频收盘面板 + PIT 成分表 | 按需 `make us-data` |
+| `user_data/data/us/` | 美股日频收盘面板 + PIT 成分表 + EDGAR 基本面 | 按需 `make us-data` / `make us-fundamentals` |
 | `user_data/data/funding/` | 资金费率历史 | 按需 `make funding` |
 | `docs/results/` | 编号研究报告（含溯源戳） | 各研究脚本写入，入 git |
 | `docs/research/` | 前向账本、月度清单、日检日志、本台账 | 入 git（账本 append-only） |

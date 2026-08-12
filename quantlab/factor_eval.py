@@ -15,7 +15,8 @@ from scipy.stats import spearmanr
 from quantlab.cross_section import long_short, quantile_portfolios, rank_ic, turnover
 from quantlab.factors import (composite_mom_lto, forward_1m, illiquidity,
                               low_turnover, low_volatility, momentum_12_1,
-                              month_end, short_reversal_1m, valuation_yield)
+                              momentum_ex_winners, month_end, short_reversal_1m,
+                              valuation_yield)
 from quantlab.registry import family_trials
 from quantlab.stats_tests import (benjamini_hochberg, deflated_sharpe,
                                   newey_west_pvalue, newey_west_tstat,
@@ -36,8 +37,16 @@ FACTOR_BUILDERS = {
     "sp": lambda d: valuation_yield(d["ps"]),
     "low_turnover": lambda d: low_turnover(d["turn"]),
     "composite_mom_lto": lambda d: composite_mom_lto(d["close"], d["turn"]),
+    # 追加批次（须显式 --factors 指定；登记见 factor-registry 对应节）
+    "momentum_ex_winners": lambda d: momentum_ex_winners(month_end(d["close"])),
+    "roe_pit": lambda d: month_end(d["roe"]),
 }
-BATCH2_FACTORS = ("ep", "bp", "sp", "low_turnover", "composite_mom_lto")
+BATCH2_FACTORS = ("ep", "bp", "sp", "low_turnover", "composite_mom_lto",
+                  "momentum_ex_winners", "roe_pit")
+# 每因子的扩展字段需求（缺失即拒跑，fail-visible）
+FACTOR_REQUIRES = {"ep": ("pe",), "bp": ("pb",), "sp": ("ps",),
+                   "low_turnover": ("turn",), "composite_mom_lto": ("turn",),
+                   "roe_pit": ("roe",)}
 
 
 def evaluate_factor(factor: pd.DataFrame, forward: pd.DataFrame,
@@ -94,10 +103,10 @@ def run_family(data: dict, market: str,
     if only_factors is None:
         builders = {k: v for k, v in builders.items() if k not in BATCH2_FACTORS}
     missing = [k for k in builders
-               if k in BATCH2_FACTORS and not all(
-                   f in data for f in ("pe", "pb", "ps", "turn"))]
+               if any(f not in data for f in FACTOR_REQUIRES.get(k, ()))]
     if missing:
-        raise RuntimeError(f"数据缺少批次 2 所需字段（pe/pb/ps/turn），无法检验: {missing}")
+        raise RuntimeError(f"数据缺少所需扩展字段，无法检验: "
+                           f"{ {k: FACTOR_REQUIRES[k] for k in missing} }")
     rows = []
     for name, builder in builders.items():
         factor = builder(data)
@@ -155,10 +164,14 @@ def main() -> int:
     parser.add_argument("--report-to", default=None)
     args = parser.parse_args()
 
+    wants_roe = args.factors and "roe_pit" in args.factors
     membership_mask = None
     if args.market == "us":
         from quantlab.us_data import load_us_daily, pit_membership_mask
         data = load_us_daily()
+        if wants_roe:
+            from quantlab.us_fundamentals import load_roe_panel
+            data["roe"] = load_roe_panel(data["close"].index)
         monthly_index = month_end(data["close"]).index
         membership_mask = pit_membership_mask(monthly_index, data["close"].columns)
         label = "美股 S&P 500"
@@ -180,6 +193,9 @@ def main() -> int:
         from quantlab.cn_data import UNIVERSES, cn_membership_mask, load_cn_daily
         universe = UNIVERSES["hs300" if args.market == "cn" else "zz500"]
         data = load_cn_daily(universe["dir"])
+        if wants_roe:
+            from quantlab.cn_fundamentals import load_roe_panel
+            data["roe"] = load_roe_panel(data["close"].index, universe["dir"])
         monthly_index = month_end(data["close"]).index
         membership_mask = cn_membership_mask(monthly_index, data["close"].columns,
                                              universe["dir"])

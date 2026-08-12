@@ -45,6 +45,20 @@ cn-data-refresh: ## 全量刷新沪深300行情（月度更新用，先存档 ma
 cn500-data-refresh: ## 全量刷新中证500行情（月度更新用）
 	.venv/bin/python -u -m quantlab.cn_data --universe zz500 --years 10 --refresh
 
+us-fundamentals: ## 下载美股 EDGAR 基本面（companyfacts → PIT ROE，约 20 分钟）
+	.venv/bin/python -m quantlab.us_fundamentals
+
+cn-fundamentals-night: ## 安装今晚 02:30 A股财报下载（hs300→zz500，成功自卸载）
+	./scripts/cn_fundamentals_night.sh
+
+factors-us-roe: ## 美股 roe_pit 检验（预登记 us #6，需 fundamentals 落地）
+	.venv/bin/python -m quantlab.factor_eval --market us --factors roe_pit \
+		--report-to docs/results/21-us-roe.md
+
+factors-cn-roe: ## A股 roe_pit 检验（预登记 cn #12，需深夜财报落地）
+	.venv/bin/python -m quantlab.factor_eval --market cn --factors roe_pit \
+		--report-to docs/results/22-cn-roe.md
+
 gates: ## 三候选 Deployment Gate 全跑（季度复查）
 	-.venv/bin/python -m quantlab.deployment_gate --rule momentum
 	-.venv/bin/python -m quantlab.deployment_gate --rule composite

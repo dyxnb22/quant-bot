@@ -9,6 +9,7 @@ TTM 净利润 = 最近 4 个季度和（10-K 年度值减去三个已知季度�
 """
 
 import json
+import socket
 import sys
 import time
 import urllib.request
@@ -17,6 +18,9 @@ from datetime import timedelta
 import pandas as pd
 
 from quantlab.strategy_loader import PROJECT_DIR
+
+# SSL 读僵死兜底（2026-08-12 实测：代理静默导致单请求挂起 8 分钟+）
+socket.setdefaulttimeout(30)
 
 US_DATA_DIR = PROJECT_DIR / "user_data" / "data" / "us"
 FUNDAMENTALS_FILE = US_DATA_DIR / "fundamentals.feather"
@@ -59,33 +63,50 @@ def extract_records(facts: dict, ticker: str) -> list[dict]:
 
 
 def download_us_fundamentals(tickers: list[str], sleep_s: float = 0.15) -> pd.DataFrame:
-    """按 SEC 限速逐 CIK 拉取，只留所需记录；staging→原子落地。"""
+    """按 SEC 限速逐 CIK 拉取，只留所需记录。
+
+    断点续传：每 25 个标的原子落盘一次；零数据标的写哨兵行（kind="none"）
+    避免重查。重跑即从上次检查点继续。
+    """
     cik = ticker_cik_map()
-    rows, missing = [], []
-    for i, ticker in enumerate(tickers, 1):
-        if ticker not in cik:
+    existing = pd.read_feather(FUNDAMENTALS_FILE) if FUNDAMENTALS_FILE.exists() \
+        else pd.DataFrame(columns=["ticker", "kind", "start", "end", "filed", "val"])
+    done = set(existing["ticker"])
+    pending = [t for t in tickers if t not in done]
+    if done:
+        print(f"  断点续传：已有 {len(done)} 个标的", flush=True)
+
+    def checkpoint(frame: pd.DataFrame) -> None:
+        staging = FUNDAMENTALS_FILE.with_suffix(".staging.feather")
+        frame.to_feather(staging)
+        staging.replace(FUNDAMENTALS_FILE)
+
+    buffer, missing = [], []
+    for i, ticker in enumerate(pending, 1):
+        rows = []
+        if ticker in cik:
+            try:
+                facts = _fetch_json(FACTS_URL.format(cik=cik[ticker]))
+                rows = extract_records(facts, ticker)
+            except Exception as error:
+                print(f"  {ticker}: 拉取失败 {error}", flush=True)
+        if not rows:
             missing.append(ticker)
-            continue
-        try:
-            facts = _fetch_json(FACTS_URL.format(cik=cik[ticker]))
-            got = extract_records(facts, ticker)
-            rows.extend(got)
-            if not got:
-                missing.append(ticker)
-        except Exception as error:
-            print(f"  {ticker}: 拉取失败 {error}", flush=True)
-            missing.append(ticker)
-        if i % 50 == 0:
-            print(f"  进度 {i}/{len(tickers)}（缺失 {len(missing)}）", flush=True)
+            rows = [{"ticker": ticker, "kind": "none", "start": None,
+                     "end": None, "filed": None, "val": float("nan")}]
+        buffer.extend(rows)
+        if i % 25 == 0 or i == len(pending):
+            existing = pd.concat([existing, pd.DataFrame(buffer)], ignore_index=True)
+            buffer = []
+            checkpoint(existing)
+            print(f"  进度 {i}/{len(pending)}（本轮缺失 {len(missing)}，已检查点）",
+                  flush=True)
         time.sleep(sleep_s)
-    frame = pd.DataFrame(rows)
-    staging = FUNDAMENTALS_FILE.with_suffix(".staging.feather")
-    frame.to_feather(staging)
-    staging.replace(FUNDAMENTALS_FILE)
-    print(f"落地 {FUNDAMENTALS_FILE}：{len(frame)} 条记录，"
-          f"{frame['ticker'].nunique() if len(frame) else 0} 标的；"
-          f"无数据 {len(missing)}: {sorted(missing)[:10]}{'…' if len(missing) > 10 else ''}")
-    return frame
+    got = existing[existing["kind"] != "none"]
+    print(f"落地 {FUNDAMENTALS_FILE}：{len(got)} 条记录，"
+          f"{got['ticker'].nunique()} 标的；无数据哨兵 "
+          f"{existing['ticker'].nunique() - got['ticker'].nunique()} 个")
+    return existing
 
 
 def _duration_days(row) -> float:

@@ -2,7 +2,8 @@ import numpy as np
 import pandas as pd
 
 from quantlab.factors import (forward_1m, illiquidity, low_volatility,
-                              momentum_12_1, month_end, short_reversal_1m)
+                              momentum_12_1, momentum_ex_winners, month_end,
+                              short_reversal_1m)
 
 
 def make_monthly(n=20):
@@ -29,6 +30,21 @@ def test_momentum_skips_recent_month():
     base = momentum_12_1(close).iloc[-1]["FLAT"]
     with_spike = momentum_12_1(spiked).iloc[-1]["FLAT"]
     assert base == with_spike
+
+
+def test_momentum_ex_winners_cuts_top_segment():
+    """截面前 20% 动量（极端赢家）被置 NaN，其余保留原值。"""
+    dates = pd.date_range("2023-01-31", periods=15, freq="ME")
+    frame = pd.DataFrame(
+        {f"C{i}": 100 * ((1 + 0.01 * i) ** np.arange(15)) for i in range(10)},
+        index=dates)
+    base = momentum_12_1(frame)
+    trimmed = momentum_ex_winners(frame, cut=0.2)
+    last_base, last_trim = base.iloc[-1], trimmed.iloc[-1]
+    top2 = last_base.nlargest(2).index
+    assert last_trim[top2].isna().all(), "前 20%（2/10 只）被剔除"
+    kept = last_base.index.difference(top2)
+    assert (last_trim[kept] == last_base[kept]).all(), "其余保留原值"
 
 
 def test_forward_return_alignment():

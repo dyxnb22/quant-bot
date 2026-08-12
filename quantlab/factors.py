@@ -37,6 +37,14 @@ def momentum_12_1(close_monthly: pd.DataFrame) -> pd.DataFrame:
     return close_monthly.shift(1) / close_monthly.shift(12) - 1
 
 
+def momentum_ex_winners(close_monthly: pd.DataFrame, cut: float = 0.2) -> pd.DataFrame:
+    """剔除极端赢家的动量（crypto_cs #2 预登记）：momentum_12_1 原值，
+    截掉当月截面排名前 cut（默认 20%，即倒 U 中反转的 Q5 段）后其余进入检验。"""
+    momentum = momentum_12_1(close_monthly)
+    rank_pct = momentum.rank(axis=1, pct=True)
+    return momentum.where(rank_pct <= 1 - cut)
+
+
 def short_reversal_1m(close_monthly: pd.DataFrame) -> pd.DataFrame:
     """1 月短反转：负的最近一个月收益（上月输家预期反弹）。"""
     return -(close_monthly / close_monthly.shift(1) - 1)
