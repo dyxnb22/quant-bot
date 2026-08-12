@@ -9,7 +9,6 @@ import csv
 import io
 import json
 import sys
-import time
 import urllib.error
 import zipfile
 from datetime import date
