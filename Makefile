@@ -1,4 +1,5 @@
-.PHONY: help setup data test backtest hyperopt oos bot-start bot-stop bot-status log
+.PHONY: help setup data test backtest hyperopt oos bot-start bot-stop bot-status log \
+	audit data-check wf health health-install health-uninstall check
 
 FT := .venv/bin/freqtrade
 CFG := --config config/config.json
@@ -37,3 +38,26 @@ bot-status: ## 查看模拟盘状态（服务/进程/API/持仓/收益）
 
 log: ## 跟踪模拟盘日志
 	tail -f user_data/logs/freqtrade.log
+
+audit: ## 风险政策审计（config + 策略生效参数）
+	.venv/bin/python -m quantlab.risk_policy
+
+data-check: ## 数据质量检查（缺口/重复/OHLC/新鲜度）
+	.venv/bin/python -m quantlab.data_quality
+
+wf: ## walk-forward 验证（STRATEGY/EPOCHS 可覆盖）
+	.venv/bin/python -m quantlab.walk_forward --strategy $(or $(STRATEGY),EmaRsiStrategy) --epochs $(or $(EPOCHS),30)
+
+health: ## 健康巡检（手动）
+	.venv/bin/python -m quantlab.health
+
+health-install: ## 安装 15 分钟定时巡检（launchd + 本地通知）
+	./scripts/health_install.sh
+
+health-uninstall: ## 卸载定时巡检
+	./scripts/health_uninstall.sh
+
+check: ## 一键体检：测试 + 风险审计 + 数据质量
+	.venv/bin/python -m pytest tests/ -q
+	.venv/bin/python -m quantlab.risk_policy
+	.venv/bin/python -m quantlab.data_quality
