@@ -17,7 +17,7 @@ MAX_OPEN_TRADES_LIMIT = 5
 STAKE_RATIO_LIMIT = 0.10
 ALLOWED_TIMEFRAMES = {"5m", "15m", "1h", "4h", "1d"}
 REQUIRED_PROTECTIONS = {"MaxDrawdown", "StoplossGuard"}
-AUDITED_STRATEGIES = ("EmaRsiStrategy", "RsiMeanRevertStrategy")
+AUDITED_STRATEGIES = ("EmaRsiStrategy", "RsiMeanRevertStrategy", "EmaRsiTrendStrategy")
 
 
 @dataclass
