@@ -115,6 +115,8 @@ def main() -> int:
     parser.add_argument("--oos-months", type=int, default=3)
     parser.add_argument("--step-months", type=int, default=3)
     parser.add_argument("--epochs", type=int, default=30)
+    parser.add_argument("--report-to", default=str(REPORT_TARGET),
+                        help="汇总报告写入路径（避免覆盖历史报告）")
     args = parser.parse_args()
 
     windows = build_windows(date.fromisoformat(args.start), date.fromisoformat(args.end),
@@ -143,8 +145,10 @@ def main() -> int:
                    f"步长 {args.step_months} 个月")
     report = render_report(args.strategy, run_id, args.epochs, window_desc, rows)
     (out_dir / "report.md").write_text(report)
-    REPORT_TARGET.write_text(report)
-    print(f"报告: {REPORT_TARGET} （存档: {out_dir / 'report.md'}）")
+    report_target = Path(args.report_to)
+    report_target.parent.mkdir(parents=True, exist_ok=True)
+    report_target.write_text(report)
+    print(f"报告: {report_target} （存档: {out_dir / 'report.md'}）")
     return 0
 
 
