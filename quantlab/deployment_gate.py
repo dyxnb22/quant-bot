@@ -25,7 +25,7 @@ def evaluate_gate(metrics: dict) -> list[dict]:
         {"gate": "G3 信息比率 ≥ 0.3",
          "value": f"{metrics['information_ratio']:.2f}",
          "ok": metrics["information_ratio"] >= 0.3},
-        {"gate": "G4 成本翻倍（20bps/边，研究口径近似）后净夏普 > 0",
+        {"gate": "G4 成本翻倍（同引擎，佣金/印花 ×2）后净夏普 > 0",
          "value": f"{metrics['stress_net_sharpe']:+.3f}",
          "ok": metrics["stress_net_sharpe"] > 0},
         {"gate": "G5 冻结后前向观察 ≥ 12 个月度周期",
