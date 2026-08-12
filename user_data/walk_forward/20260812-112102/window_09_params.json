@@ -1,0 +1,28 @@
+{
+  "strategy_name": "EmaRsiH3PairSpecific",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_rsi_max": 56
+    },
+    "roi": {
+      "0": 0.489,
+      "479": 0.081,
+      "895": 0.025,
+      "2143": 0
+    },
+    "stoploss": {
+      "stoploss": -0.071
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-08-12 03:23:31.673548+00:00"
+}

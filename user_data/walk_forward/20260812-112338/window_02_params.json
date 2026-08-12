@@ -1,0 +1,28 @@
+{
+  "strategy_name": "EmaRsiH4FastRegime",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_rsi_max": 62
+    },
+    "roi": {
+      "0": 0.24,
+      "123": 0.157,
+      "701": 0.04,
+      "1426": 0
+    },
+    "stoploss": {
+      "stoploss": -0.17
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-08-12 03:24:16.251471+00:00"
+}

@@ -1,0 +1,28 @@
+{
+  "strategy_name": "EmaRsiH1TightStop",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_rsi_max": 58
+    },
+    "roi": {
+      "0": 0.22,
+      "479": 0.116,
+      "1021": 0.041,
+      "2336": 0
+    },
+    "stoploss": {
+      "stoploss": -0.088
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-08-12 03:18:33.754305+00:00"
+}

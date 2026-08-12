@@ -1,0 +1,28 @@
+{
+  "strategy_name": "EmaRsiH2TimeExit",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_rsi_max": 59
+    },
+    "roi": {
+      "0": 0.263,
+      "230": 0.221,
+      "676": 0.066,
+      "1614": 0
+    },
+    "stoploss": {
+      "stoploss": -0.28
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-08-12 03:18:47.980314+00:00"
+}
