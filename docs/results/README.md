@@ -17,4 +17,7 @@
 | [13-cn-value-factors](13-cn-value-factors.md) | 因子初检报告：A 股 沪深 300 |
 | [14-deployment-gate](14-deployment-gate.md) | Deployment Gate 判定（G1-G5） |
 | [15-cn-composite](15-cn-composite.md) | 因子初检报告：A 股 沪深 300 |
+| [16-cn500-factor-tests](16-cn500-factor-tests.md) | 因子初检报告：A 股 中证 500 |
+| [17-us-momentum-recheck](17-us-momentum-recheck.md) | 因子初检报告：美股 S&P 500 |
+| [18-crypto-cs-momentum](18-crypto-cs-momentum.md) | 因子初检报告：加密截面（Binance USDT） |
 | [factor-registry](factor-registry.md) | 因子登记册（living doc） |
