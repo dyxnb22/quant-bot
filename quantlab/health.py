@@ -9,7 +9,6 @@ import sys
 import time
 import urllib.request
 from datetime import datetime
-from pathlib import Path
 
 from quantlab.strategy_loader import PROJECT_DIR
 

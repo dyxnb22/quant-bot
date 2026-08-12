@@ -112,7 +112,11 @@ brief-install: ## 安装每日 09:00 值班日报（launchd）
 brief-uninstall: ## 卸载值班日报定时任务
 	./scripts/brief_uninstall.sh
 
-check: ## 一键体检：测试 + 风险审计 + 数据质量
+lint: ## 静态检查（ruff，高信号规则集）
+	.venv/bin/ruff check quantlab/ tests/ user_data/strategies/
+
+check: ## 一键体检：静态检查 + 测试 + 风险审计 + 数据质量
+	.venv/bin/ruff check quantlab/ tests/ user_data/strategies/
 	.venv/bin/python -m pytest tests/ -q
 	.venv/bin/python -m quantlab.risk_policy
 	.venv/bin/python -m quantlab.data_quality

@@ -28,6 +28,11 @@ def _fill_dates(daily_index, signal_dates):
     return fills
 
 
+def _tradable_price(price_row: pd.Series, ticker: str) -> float | None:
+    value = price_row.get(ticker)
+    return None if value is None or pd.isna(value) else float(value)
+
+
 def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
                       volume_daily: pd.DataFrame, capital: float = 300_000,
                       enter_pct: float = 0.2, exit_pct: float = 0.4,
@@ -53,10 +58,6 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
         move = change.loc[fill_date]
         vol = volume_daily.loc[fill_date]
 
-        def tradable_price(ticker):
-            p = price.get(ticker)
-            return None if p is None or pd.isna(p) else float(p)
-
         # 1) 目标名单（研究口径），随后应用可交易性约束
         row = factor.loc[signal]
         target = target_positions(row, set(shares), enter_pct, exit_pct,
@@ -64,7 +65,7 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
 
         # 2) 卖出：非目标持仓；停牌/跌停 → 顺延
         for ticker in sorted(set(shares) - target):
-            p = tradable_price(ticker)
+            p = _tradable_price(price, ticker)
             suspended = p is None or (not pd.isna(vol.get(ticker, float("nan")))
                                       and vol.get(ticker) == 0)
             limit_down = (not pd.isna(move.get(ticker, float("nan")))
@@ -84,10 +85,10 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
         planned = sorted(target - set(shares))
         intended_total = len(target | stuck)
         holdings_value = sum(
-            s * (tradable_price(t) or 0.0) for t, s in shares.items())
+            s * (_tradable_price(price, t) or 0.0) for t, s in shares.items())
         budget_per_name = (cash + holdings_value) / max(intended_total, 1)
         for ticker in planned:
-            p = tradable_price(ticker)
+            p = _tradable_price(price, ticker)
             suspended = p is None or vol.get(ticker, 0) == 0
             limit_up = (not pd.isna(move.get(ticker, float("nan")))
                         and move.get(ticker) >= LIMIT_PCT)

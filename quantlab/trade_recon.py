@@ -10,7 +10,6 @@ import json
 import sys
 import urllib.request
 from datetime import datetime, timedelta
-from pathlib import Path
 
 import pandas as pd
 

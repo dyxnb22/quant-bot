@@ -12,6 +12,9 @@
 
 ## 晨间 Runbook（迭代 2 收尾，数据落地后）
 
+> **已被取代**：v3 硬化批次扩展了晨间步骤（增加 deployment gate、可交易性口径），
+> 请以 `../plans/2026-08-12-iteration-v3-hardening.md` 的 Runbook 为准。以下保留作历史记录。
+
 ```bash
 tail -5 user_data/logs/cn_download.log   # 确认深夜下载完成（622/622）
 make manifest                            # 存档数据指纹

@@ -7,7 +7,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantlab.strategy_loader import load_strategy_class  # noqa: E402, F401
+# 再导出：test_strategies 等从 conftest 导入
+from quantlab.strategy_loader import load_strategy_class  # noqa: F401
 
 
 @pytest.fixture

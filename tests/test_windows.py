@@ -1,6 +1,6 @@
 from datetime import date
 
-from quantlab.windows import Window, add_months, build_windows
+from quantlab.windows import add_months, build_windows
 
 
 def test_add_months_normal():

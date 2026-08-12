@@ -1,0 +1,17 @@
+# 静态检查规则集：高信号规则为主；时区/宽异常等风格规则按项目实际取舍
+line-length = 100
+target-version = "py314"
+
+[lint]
+select = [
+    "F",     # pyflakes：未用导入/未定义名/重复参数
+    "E9",    # 语法级错误
+    "E402",  # 导入不在顶部（代理清理/超时兜底必须先于导入的场景用 noqa 显式豁免）
+    "B",     # bugbear：闭包捕获循环变量等真实缺陷
+    "PLE",   # pylint errors
+    "ISC",   # 隐式字符串拼接（易吞逗号）
+    "RUF100" # 失效的 noqa
+]
+ignore = [
+    "B905",  # zip strict：数据面板对齐场景有意允许
+]

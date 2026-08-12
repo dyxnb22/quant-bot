@@ -7,7 +7,7 @@
 import argparse
 import json
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import pandas as pd
 
@@ -89,12 +89,10 @@ def main() -> int:
     industry_map = dict(zip(industry["code"], industry["industry"]))
     name_map = dict(zip(industry["code"], industry["code_name"]))
 
-    # 口径：缓冲带（进20/出40）+ 行业中性（12 号报告按预登记标准判定切换）
-    state_preview = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
-    previous_holdings = set()
-    prior_months = [m for m in sorted(state_preview) if m < f"{latest:%Y-%m}"]
-    if prior_months:
-        previous_holdings = set(state_preview[prior_months[-1]])
+    # 口径：缓冲带（进20/出40）+ 行业中性（12 号报告按预登记标准判定切换；参数已冻结）
+    state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
+    previous_months = [m for m in sorted(state) if m < month_key]
+    previous_holdings = set(state[previous_months[-1]]) if previous_months else set()
     selected = target_positions(row, previous_holdings, enter_pct=0.2, exit_pct=0.4,
                                 industry_map=industry_map, industry_neutral=True)
     top = row.reindex(list(selected)).dropna().sort_values(ascending=False)
@@ -102,11 +100,9 @@ def main() -> int:
     correlation = avg_pairwise_correlation(close_daily, top.index)
 
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
-    state = json.loads(STATE_FILE.read_text()) if STATE_FILE.exists() else {}
 
     # 跟踪上期清单表现（若上期存在且不是本月）
     tracking_row = None
-    previous_months = [m for m in sorted(state) if m < month_key]
     if previous_months:
         prev_month = previous_months[-1]
         universe = list(row.index)
@@ -119,12 +115,12 @@ def main() -> int:
         f"# CN 动量研究清单 {month_key}",
         "",
         f"- 生成: {datetime.now():%F %T} | 因子: momentum_12_1（{latest:%Y-%m} 月末截面）",
-        f"- 口径: 缓冲带（进20/出40）+ 行业中性（依据 12 号组合工程对比）",
-        f"- 股池: 沪深 300 点时成分 {row.notna().sum()} 只 | 清单: {len(top)} 只"
-        f"（保留老持仓 {len(selected & previous_holdings)} 只）",
-        f"- 组合风险: 最大行业权重 {weights.iloc[0]:.0%}（{weights.index[0]}）"
-        f"{' ⚠ 超 30% 集中度警戒' if weights.iloc[0] > CONCENTRATION_WARN else ''} | "
-        f"60 日平均两两相关 {correlation:.2f}",
+        "- 口径: 缓冲带（进20/出40）+ 行业中性（依据 12 号组合工程对比）",
+        (f"- 股池: 沪深 300 点时成分 {row.notna().sum()} 只 | 清单: {len(top)} 只"
+         f"（保留老持仓 {len(selected & previous_holdings)} 只）"),
+        (f"- 组合风险: 最大行业权重 {weights.iloc[0]:.0%}（{weights.index[0]}）"
+         f"{' ⚠ 超 30% 集中度警戒' if weights.iloc[0] > CONCENTRATION_WARN else ''} | "
+         f"60 日平均两两相关 {correlation:.2f}"),
         "",
         DISCLAIMER,
         "",

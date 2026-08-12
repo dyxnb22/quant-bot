@@ -20,7 +20,7 @@ from pandas import DataFrame
 from freqtrade.strategy import IntParameter, IStrategy
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-from quantlab.funding import (FUNDING_DIR, attach_funding, funding_file,  # noqa: E402
+from quantlab.funding import (FUNDING_DIR, attach_funding, funding_file,
                               funding_zscore)
 
 

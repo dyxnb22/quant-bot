@@ -8,7 +8,6 @@ import argparse
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from pathlib import Path  # noqa: F401
 
 import pandas as pd
 

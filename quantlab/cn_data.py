@@ -19,10 +19,11 @@ from pathlib import Path
 # （2026-08-12 实测卡死在 250/300）
 socket.setdefaulttimeout(30)
 
+# E402 豁免原因：超时兜底必须先于 baostock 建连
 import baostock as bs  # noqa: E402
 import pandas as pd  # noqa: E402
 
-from quantlab.strategy_loader import PROJECT_DIR
+from quantlab.strategy_loader import PROJECT_DIR  # noqa: E402
 
 CN_DATA_DIR = PROJECT_DIR / "user_data" / "data" / "cn"
 

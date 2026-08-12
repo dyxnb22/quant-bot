@@ -99,8 +99,8 @@ def render_report(strategy: str, run_id: str, epochs: int,
         f"- **OOS 拼接收益（各段连乘）: {concat_return:+.2%}** —— 这是最接近『真实使用』的数字",
         f"- OOS 为正的窗口: {positive}/{len(rows)}",
         f"- IS→OOS 平均衰减: {decay:+.2%}（负值 = 样本外普遍差于样本内，即过拟合程度）",
-        f"- 优化参数通过风险政策审计: {compliant}/{len(rows)}"
-        "（越界窗口说明优化器再次尝试卖风险换收益，已被审计标记）",
+        (f"- 优化参数通过风险政策审计: {compliant}/{len(rows)}"
+         "（越界窗口说明优化器再次尝试卖风险换收益，已被审计标记）"),
         "",
         "## 读法",
         "",
