@@ -6,6 +6,8 @@ set -a; source .env; set +a
 BASE="http://127.0.0.1:8080/api/v1"
 AUTH="$FT_API_USERNAME:$FT_API_PASSWORD"
 LABEL="com.quantbot.dryrun"
+# 本机 API 请求绕过系统代理，避免本地代理干扰
+CURL="curl -s --noproxy 127.0.0.1"
 
 if launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1; then
     echo "launchd 服务: 已加载 (${LABEL})"
@@ -21,13 +23,13 @@ else
 fi
 
 echo "--- ping ---"
-curl -s "$BASE/ping"; echo
+$CURL "$BASE/ping"; echo
 echo "--- 概览 ---"
-curl -s -u "$AUTH" "$BASE/show_config" | .venv/bin/python -c "import json,sys; c=json.load(sys.stdin); print('state:', c['state'], '| strategy:', c['strategy'], '| dry_run:', c['dry_run'])"
+$CURL -u "$AUTH" "$BASE/show_config" | .venv/bin/python -c "import json,sys; c=json.load(sys.stdin); print('state:', c['state'], '| strategy:', c['strategy'], '| dry_run:', c['dry_run'])"
 echo "--- 收益 ---"
-curl -s -u "$AUTH" "$BASE/profit" | .venv/bin/python -c "import json,sys; p=json.load(sys.stdin); print('closed:', p['trade_count'], 'trades | profit:', round(p['profit_closed_coin'], 2), 'USDT | winrate:', round(p.get('winrate', 0) * 100, 1), '%')"
+$CURL -u "$AUTH" "$BASE/profit" | .venv/bin/python -c "import json,sys; p=json.load(sys.stdin); print('closed:', p['trade_count'], 'trades | profit:', round(p['profit_closed_coin'], 2), 'USDT | winrate:', round(p.get('winrate', 0) * 100, 1), '%')"
 echo "--- 持仓 ---"
-curl -s -u "$AUTH" "$BASE/status" | .venv/bin/python -c "
+$CURL -u "$AUTH" "$BASE/status" | .venv/bin/python -c "
 import json, sys
 trades = json.load(sys.stdin)
 if not trades:

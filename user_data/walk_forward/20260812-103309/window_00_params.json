@@ -1,0 +1,28 @@
+{
+  "strategy_name": "EmaRsiStrategy",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_rsi_max": 59
+    },
+    "roi": {
+      "0": 0.443,
+      "311": 0.157,
+      "735": 0.079,
+      "1487": 0
+    },
+    "stoploss": {
+      "stoploss": -0.143
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-08-12 02:33:17.728701+00:00"
+}
