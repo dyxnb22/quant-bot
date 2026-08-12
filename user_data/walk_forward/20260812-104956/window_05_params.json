@@ -1,0 +1,31 @@
+{
+  "strategy_name": "RsiMeanRevertStrategy",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "sell": {
+      "sell_rsi": 60
+    },
+    "buy": {
+      "buy_rsi_min": 23
+    },
+    "roi": {
+      "0": 0.433,
+      "332": 0.163,
+      "788": 0.027,
+      "2076": 0
+    },
+    "stoploss": {
+      "stoploss": -0.109
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-08-12 02:51:11.524481+00:00"
+}
