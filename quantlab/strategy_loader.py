@@ -6,18 +6,31 @@ freqtrade 运行时会用 <Strategy>.json（hyperopt 产物）覆盖类属性；
 
 import importlib.util
 import json
+import sys
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_STRATEGY_DIR = PROJECT_DIR / "user_data" / "strategies"
 
 
+def discover_strategies(strategy_dir=None) -> list[str]:
+    """按文件名发现全部策略（文件名 = 类名约定）。"""
+    d = Path(strategy_dir) if strategy_dir else DEFAULT_STRATEGY_DIR
+    return sorted(p.stem for p in d.glob("*.py"))
+
+
 def load_strategy_class(name: str, strategy_dir=None):
     d = Path(strategy_dir) if strategy_dir else DEFAULT_STRATEGY_DIR
-    spec = importlib.util.spec_from_file_location(name, d / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return getattr(module, name)
+    # 变体策略通过 `from EmaRsiStrategy import ...` 继承基类，需要目录在 sys.path 上
+    d_str = str(d)
+    sys.path.insert(0, d_str)
+    try:
+        spec = importlib.util.spec_from_file_location(name, d / f"{name}.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return getattr(module, name)
+    finally:
+        sys.path.remove(d_str)
 
 
 def load_effective_params(name: str, strategy_dir=None) -> dict:

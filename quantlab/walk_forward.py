@@ -129,7 +129,9 @@ def main() -> int:
     out_dir = PROJECT_DIR / "user_data" / "walk_forward" / run_id
     strategy_dir = out_dir / "strategy"
     strategy_dir.mkdir(parents=True)
-    shutil.copy(DEFAULT_STRATEGY_DIR / f"{args.strategy}.py", strategy_dir)
+    # 复制全部策略源码（变体通过继承引用基类文件），参数 json 不复制——每窗口从干净参数开始
+    for src in DEFAULT_STRATEGY_DIR.glob("*.py"):
+        shutil.copy(src, strategy_dir)
 
     print(f"walk-forward: {len(windows)} 个窗口, 策略 {args.strategy}, run={run_id}")
     rows = []

@@ -3,8 +3,11 @@ import pandas as pd
 import pytest
 
 from conftest import load_strategy_class
+from quantlab.strategy_loader import discover_strategies
 
-STRATEGIES = ["EmaRsiStrategy", "RsiMeanRevertStrategy", "EmaRsiTrendStrategy"]
+STRATEGIES = discover_strategies()
+# 带体制闸门的策略在通用合成夹具上可能无入场信号，由各自专项测试覆盖入场行为
+GATED_STRATEGIES = {"EmaRsiTrendStrategy", "EmaRsiH4FastRegime"}
 
 
 @pytest.fixture
@@ -54,7 +57,7 @@ def test_entry_exit_signals_valid(strategy, ohlcv_df):
     assert "enter_long" in df.columns and "exit_long" in df.columns
     assert set(df["enter_long"].dropna().unique()) <= {0, 1}
     assert set(df["exit_long"].dropna().unique()) <= {0, 1}
-    if strategy.__class__.__name__ != "EmaRsiTrendStrategy":
+    if strategy.__class__.__name__ not in GATED_STRATEGIES:
         assert df["enter_long"].sum() > 0, "合成数据上应至少产生一次入场信号"
 
 

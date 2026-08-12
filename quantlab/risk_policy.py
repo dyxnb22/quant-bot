@@ -9,7 +9,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from quantlab.strategy_loader import PROJECT_DIR, load_effective_params
+from quantlab.strategy_loader import (PROJECT_DIR, discover_strategies,
+                                      load_effective_params)
 
 STOPLOSS_DEEPEST = -0.20
 STOPLOSS_SHALLOWEST = -0.005
@@ -17,7 +18,6 @@ MAX_OPEN_TRADES_LIMIT = 5
 STAKE_RATIO_LIMIT = 0.10
 ALLOWED_TIMEFRAMES = {"5m", "15m", "1h", "4h", "1d"}
 REQUIRED_PROTECTIONS = {"MaxDrawdown", "StoplossGuard"}
-AUDITED_STRATEGIES = ("EmaRsiStrategy", "RsiMeanRevertStrategy", "EmaRsiTrendStrategy")
 
 
 @dataclass
@@ -67,10 +67,10 @@ def audit_config(config: dict) -> list[Violation]:
     return violations
 
 
-def run_audit(config_path=None, strategies=AUDITED_STRATEGIES, strategy_dir=None):
+def run_audit(config_path=None, strategies=None, strategy_dir=None):
     config_file = Path(config_path) if config_path else PROJECT_DIR / "config" / "config.json"
     violations = audit_config(json.loads(config_file.read_text()))
-    for name in strategies:
+    for name in strategies or discover_strategies(strategy_dir):
         violations += audit_params(name, load_effective_params(name, strategy_dir))
     return violations
 
