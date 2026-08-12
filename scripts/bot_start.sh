@@ -12,6 +12,12 @@ if launchctl print "gui/$(id -u)/${LABEL}" >/dev/null 2>&1; then
     exit 0
 fi
 
+echo "启动前风险审计..."
+if ! .venv/bin/python -m quantlab.risk_policy; then
+    echo "审计未通过，拒绝启动。请修复违规项后重试。" >&2
+    exit 1
+fi
+
 mkdir -p "$HOME/Library/LaunchAgents" user_data/logs
 cat > "$PLIST" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
