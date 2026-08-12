@@ -1,6 +1,29 @@
 import numpy as np
 
-from quantlab.stats_tests import benjamini_hochberg, deflated_sharpe, permutation_pvalue
+from quantlab.stats_tests import (benjamini_hochberg, deflated_sharpe,
+                                  newey_west_tstat, permutation_pvalue)
+
+
+def naive_t(x):
+    return x.mean() / x.std(ddof=1) * len(x) ** 0.5
+
+
+def test_newey_west_close_to_naive_when_iid():
+    rng = np.random.default_rng(0)
+    x = rng.normal(0.5, 1.0, 500)
+    nw = newey_west_tstat(x)
+    assert abs(nw - naive_t(x)) / naive_t(x) < 0.15
+
+
+def test_newey_west_shrinks_t_under_autocorrelation():
+    rng = np.random.default_rng(1)
+    n = 500
+    e = rng.normal(0, 1, n)
+    x = np.zeros(n)
+    for i in range(1, n):
+        x[i] = 0.7 * x[i - 1] + e[i]  # 强正自相关
+    x = x + 0.3
+    assert newey_west_tstat(x) < naive_t(x) * 0.75, "正自相关下 NW t 应显著低于朴素 t"
 
 
 def test_deflated_sharpe_monotone_in_trials():

@@ -52,6 +52,29 @@ def permutation_pvalue(series, n_permutations: int = 1000, seed: int = 0) -> flo
     return float((1 + (permuted_means >= observed).sum()) / (1 + n_permutations))
 
 
+def newey_west_tstat(series, lags: int | None = None) -> float:
+    """均值 = 0 的 Newey-West HAC t 统计（Bartlett 核）。
+
+    月频 IC/收益序列存在序列相关，朴素 t 会高估显著性；
+    默认滞后阶 ⌊4(n/100)^{2/9}⌋。
+    """
+    values = np.asarray(series, dtype=float)
+    values = values[~np.isnan(values)]
+    n = values.size
+    if n < 3:
+        return 0.0
+    if lags is None:
+        lags = int(4 * (n / 100) ** (2 / 9))
+    demeaned = values - values.mean()
+    long_run_var = float(demeaned @ demeaned) / n
+    for lag in range(1, min(lags, n - 1) + 1):
+        gamma = float(demeaned[lag:] @ demeaned[:-lag]) / n
+        long_run_var += 2 * (1 - lag / (lags + 1)) * gamma
+    if long_run_var <= 0:
+        return 0.0
+    return float(values.mean() / math.sqrt(long_run_var / n))
+
+
 def benjamini_hochberg(pvalues, alpha: float = 0.05) -> list[bool]:
     """BH 过程控制 FDR：返回每个假设校正后是否显著（与输入同序）。"""
     p = np.asarray(pvalues, dtype=float)

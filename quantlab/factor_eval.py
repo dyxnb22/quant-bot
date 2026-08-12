@@ -16,7 +16,8 @@ from quantlab.cross_section import long_short, quantile_portfolios, rank_ic, tur
 from quantlab.factors import (forward_1m, illiquidity, low_turnover,
                               low_volatility, momentum_12_1, month_end,
                               short_reversal_1m, valuation_yield)
-from quantlab.stats_tests import benjamini_hochberg, deflated_sharpe, permutation_pvalue
+from quantlab.stats_tests import (benjamini_hochberg, deflated_sharpe,
+                                  newey_west_tstat, permutation_pvalue)
 from quantlab.strategy_loader import PROJECT_DIR
 
 MIN_NAMES_PER_MONTH = 50
@@ -57,6 +58,7 @@ def evaluate_factor(factor: pd.DataFrame, forward: pd.DataFrame,
         "months": int(len(ic)),
         "ic_mean": float(ic.mean()),
         "ic_t": float(ic.mean() / ic.std() * len(ic) ** 0.5) if ic.std() > 0 else 0.0,
+        "ic_nw_t": newey_west_tstat(ic),
         "perm_p": permutation_pvalue(ic, seed=42),
         "consistency": consistency,
         "net_mean": float(net.mean()),
@@ -120,12 +122,13 @@ def render(market_label: str, universe_note: str, rows: list[dict],
         f"- 股池: {universe_note}",
         f"- 家族试验数 n_trials = {rows[0]['n_trials']}（DSR 按此扣减；BH 在本批 {len(rows)} 个假设内）",
         "",
-        "| 因子 | 月数 | IC 均值 | IC t | 置换 p | BH 显著 | 分段一致率 | 多空净(月) | 净夏普 | DSR | 单调性 | 判定 |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| 因子 | 月数 | IC 均值 | IC t | NW t | 置换 p | BH 显著 | 分段一致率 | 多空净(月) | 净夏普 | DSR | 单调性 | 判定 |",
+        "|---|---|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for row, v in zip(rows, verdicts):
         lines.append(
             f"| {row['factor']} | {row['months']} | {row['ic_mean']:+.4f} | {row['ic_t']:+.2f} "
+            f"| {row.get('ic_nw_t', 0):+.2f} "
             f"| {row['perm_p']:.3f} | {'✓' if row['bh_significant'] else '✗'} "
             f"| {row['consistency']:.0%} | {row['net_mean']:+.3%} | {row['net_sharpe']:+.2f} "
             f"| {row['dsr']:.2f} | {row['monotonicity']:+.2f} | {v} |")
