@@ -11,10 +11,13 @@ from datetime import datetime, timedelta
 
 import pandas as pd
 
+from quantlab.attribution import industry_active_weights, style_snapshot
 from quantlab.cn_data import cn_membership_mask, load_cn_daily, load_industry
 from quantlab.factors import momentum_12_1, month_end
 from quantlab.portfolio_sim import target_positions
 from quantlab.strategy_loader import PROJECT_DIR
+
+MIN_UNIVERSE = 250  # 股池小于此值视为数据不完整（如下载中断），拒绝生成清单
 
 RESEARCH_DIR = PROJECT_DIR / "docs" / "research" / "cn-momentum"
 STATE_FILE = RESEARCH_DIR / "state.json"
@@ -77,6 +80,10 @@ def main() -> int:
     row = factor.loc[latest]
     if mask is not None:
         row = row[mask.loc[latest].reindex(row.index).fillna(False)]
+    if row.notna().sum() < MIN_UNIVERSE:
+        print(f"错误: 当前有效股池仅 {row.notna().sum()} 只（< {MIN_UNIVERSE}），"
+              f"疑似数据不完整（下载中断？），拒绝生成清单。先完成 make cn-data-refresh")
+        return 1
 
     industry = load_industry()
     industry_map = dict(zip(industry["code"], industry["industry"]))
@@ -130,6 +137,20 @@ def main() -> int:
     lines += ["", "行业分布：", ""]
     for name, weight in weights.items():
         lines.append(f"- {name}: {weight:.0%}")
+
+    # 风格归因段：清单赚的是什么钱（迭代 3）
+    liquidity_row = ((close_daily * data["volume"]).rolling(60, min_periods=40)
+                     .mean().iloc[-1].reindex(row.index))
+    snapshot = style_snapshot(list(top.index), row, liquidity_row)
+    active = industry_active_weights(list(top.index), list(row.dropna().index), industry_map)
+    lines += [
+        "", "## 风格归因（相对股池）", "",
+        f"- 动量分位: {snapshot['momentum_pct']:.0%}（0% = 股池最高动量端；清单按设计应显著偏高动量）",
+        f"- 流动性分位: {snapshot['liquidity_pct']:.0%}（<50% 偏大盘活跃票，>50% 偏小票——警惕隐性小票暴露）",
+        "- 行业主动权重（超配前 3 / 低配前 3）：",
+    ]
+    for name, value in list(active.head(3).items()) + list(active.tail(3).items()):
+        lines.append(f"  - {name}: {value:+.1%}")
     (RESEARCH_DIR / f"{month_key}.md").write_text("\n".join(lines) + "\n")
 
     if not TRACKING_FILE.exists():

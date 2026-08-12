@@ -33,6 +33,11 @@ factors-us: ## 美股四因子初检（预登记协议）
 factors-cn: ## A股四因子初检（预登记协议）
 	.venv/bin/python -m quantlab.factor_eval --market cn
 
+factors-cn-batch2: ## A股批次2检验：EP/BP/SP/低换手（需深夜数据落地后运行）
+	.venv/bin/python -m quantlab.factor_eval --market cn \
+		--factors ep bp sp low_turnover --n-trials 9 \
+		--report-to docs/results/13-cn-value-factors.md
+
 cn-data-refresh: ## 全量刷新A股行情（月度更新用，先存档 manifest）
 	.venv/bin/python -m quantlab.manifest
 	.venv/bin/python -u -m quantlab.cn_data --years 10 --refresh

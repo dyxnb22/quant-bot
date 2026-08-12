@@ -47,6 +47,21 @@ def illiquidity(close_daily: pd.DataFrame, volume_daily: pd.DataFrame,
     return -np.log(dollar_volume).resample("ME").last()
 
 
+def valuation_yield(ratio_daily: pd.DataFrame) -> pd.DataFrame:
+    """估值收益率：1/估值比率的月末值（EP=1/PE、BP=1/PB、SP=1/PS）。
+
+    比率 ≤ 0（亏损/负资产）时收益率为负，保留其排序信息；除零得到的 inf 置为 NaN。
+    """
+    import numpy as np
+    yields = 1.0 / ratio_daily
+    return yields.replace([np.inf, -np.inf], float("nan")).resample("ME").last()
+
+
+def low_turnover(turn_daily: pd.DataFrame, window: int = 60) -> pd.DataFrame:
+    """低换手：负的 60 日平均换手率月末值（低换手溢价方向）。"""
+    return -turn_daily.rolling(window, min_periods=40).mean().resample("ME").last()
+
+
 def forward_1m(close_monthly: pd.DataFrame) -> pd.DataFrame:
     """t 期行 = t → t+1 的未来一个月收益。"""
     return close_monthly.shift(-1) / close_monthly - 1

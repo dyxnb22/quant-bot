@@ -74,3 +74,21 @@ def test_illiquidity_prefers_thin_names():
     factor = illiquidity(close, volume)
     row = factor.dropna().iloc[-1]
     assert row["SMALL"] > row["BIG"], "成交额越小非流动性因子越高"
+
+
+def test_valuation_yield_ranks_and_guards():
+    from quantlab.factors import valuation_yield
+    dates = pd.date_range("2024-01-01", periods=40, freq="B")
+    pe = pd.DataFrame({"CHEAP": 8.0, "RICH": 40.0, "LOSS": -5.0, "ZERO": 0.0}, index=dates)
+    factor = valuation_yield(pe)
+    row = factor.iloc[-1]
+    assert row["CHEAP"] > row["RICH"] > row["LOSS"], "低 PE 收益率更高，亏损为负"
+    assert pd.isna(row["ZERO"]), "除零必须为 NaN"
+
+
+def test_low_turnover_prefers_quiet():
+    from quantlab.factors import low_turnover
+    dates = pd.date_range("2024-01-01", periods=200, freq="B")
+    turn = pd.DataFrame({"QUIET": 0.5, "HOT": 8.0}, index=dates)
+    row = low_turnover(turn).dropna().iloc[-1]
+    assert row["QUIET"] > row["HOT"]

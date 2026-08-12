@@ -13,8 +13,9 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 from quantlab.cross_section import long_short, quantile_portfolios, rank_ic, turnover
-from quantlab.factors import (forward_1m, illiquidity, low_volatility,
-                              momentum_12_1, month_end, short_reversal_1m)
+from quantlab.factors import (forward_1m, illiquidity, low_turnover,
+                              low_volatility, momentum_12_1, month_end,
+                              short_reversal_1m, valuation_yield)
 from quantlab.stats_tests import benjamini_hochberg, deflated_sharpe, permutation_pvalue
 from quantlab.strategy_loader import PROJECT_DIR
 
@@ -26,7 +27,13 @@ FACTOR_BUILDERS = {
     "short_reversal_1m": lambda d: short_reversal_1m(month_end(d["close"])),
     "low_volatility": lambda d: low_volatility(d["close"]),
     "illiquidity": lambda d: illiquidity(d["close"], d["volume"]),
+    # 批次 2（需扩展字段，仅 A 股数据管道提供；登记册已预登记）
+    "ep": lambda d: valuation_yield(d["pe"]),
+    "bp": lambda d: valuation_yield(d["pb"]),
+    "sp": lambda d: valuation_yield(d["ps"]),
+    "low_turnover": lambda d: low_turnover(d["turn"]),
 }
+BATCH2_FACTORS = ("ep", "bp", "sp", "low_turnover")
 
 
 def evaluate_factor(factor: pd.DataFrame, forward: pd.DataFrame,
@@ -76,7 +83,15 @@ def run_family(data: dict, membership_mask: pd.DataFrame | None = None,
                n_trials_override: int | None = None) -> tuple[list[dict], list[str]]:
     forward = forward_1m(month_end(data["close"]))
     builders = {k: v for k, v in FACTOR_BUILDERS.items()
-                if only_factors is None or k in only_factors}
+                if (only_factors is None or k in only_factors)}
+    # 默认批次（未显式指定时）只跑数据齐备的价格系因子，批次 2 需显式指定
+    if only_factors is None:
+        builders = {k: v for k, v in builders.items() if k not in BATCH2_FACTORS}
+    missing = [k for k in builders
+               if k in BATCH2_FACTORS and not all(
+                   f in data for f in ("pe", "pb", "ps", "turn"))]
+    if missing:
+        raise RuntimeError(f"数据缺少批次 2 所需字段（pe/pb/ps/turn），无法检验: {missing}")
     rows = []
     for name, builder in builders.items():
         factor = builder(data)
