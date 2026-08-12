@@ -15,6 +15,7 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
+          cache-dependency-path: requirements.lock
       - name: Install dependencies
         run: pip install -r requirements.lock
       - name: Unit tests
