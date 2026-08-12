@@ -48,25 +48,33 @@ def _months(start: tuple, end: tuple):
         y, m = (y + 1, 1) if m == 12 else (y, m + 1)
 
 
-def fetch_symbol_daily(symbol: str) -> pd.DataFrame:
-    """单币种全历史日线（月度归档拼接；缺失月 404 跳过）。"""
+def _fetch_month(symbol: str, year: int, month: int) -> list[tuple]:
+    url = KLINE_URL.format(symbol=symbol, year=year, month=month)
+    try:
+        payload = _get(url, retries=2)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return []
+        raise
+    rows = []
+    with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+        with archive.open(archive.namelist()[0]) as fh:
+            for row in csv.reader(io.TextIOWrapper(fh)):
+                # 列: open_time,open,high,low,close,volume,close_time,quote_volume,...
+                rows.append((int(row[0]), float(row[4]), float(row[7])))
+    return rows
+
+
+def fetch_symbol_daily(symbol: str, workers: int = 8) -> pd.DataFrame:
+    """单币种全历史日线（月度归档并发抓取；缺失月 404 跳过）。"""
+    from concurrent.futures import ThreadPoolExecutor
     today = date.today()
     end = (today.year, today.month - 1) if today.month > 1 else (today.year - 1, 12)
+    months = list(_months(START, end))
     rows = []
-    for year, month in _months(START, end):
-        url = KLINE_URL.format(symbol=symbol, year=year, month=month)
-        try:
-            payload = _get(url, retries=2)
-        except urllib.error.HTTPError as error:
-            if error.code == 404:
-                continue
-            raise
-        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
-            with archive.open(archive.namelist()[0]) as fh:
-                for row in csv.reader(io.TextIOWrapper(fh)):
-                    # 列: open_time,open,high,low,close,volume,close_time,quote_volume,...
-                    rows.append((int(row[0]), float(row[4]), float(row[7])))
-        time.sleep(0.05)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for chunk in pool.map(lambda ym: _fetch_month(symbol, *ym), months):
+            rows.extend(chunk)
     if not rows:
         return pd.DataFrame(columns=["date", "close", "dollar_volume"])
     frame = pd.DataFrame(rows, columns=["ts", "close", "dollar_volume"])
