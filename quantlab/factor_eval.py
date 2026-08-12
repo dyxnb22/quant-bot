@@ -149,7 +149,7 @@ def render(market_label: str, universe_note: str, rows: list[dict],
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="因子检验（按预登记协议）")
-    parser.add_argument("--market", choices=["us", "cn", "cn500"], default="us")
+    parser.add_argument("--market", choices=["us", "cn", "cn500", "crypto_cs"], default="us")
     parser.add_argument("--factors", nargs="*", default=None,
                         help="只检验指定因子（复检场景，须先在登记册预登记）")
     parser.add_argument("--report-to", default=None)
@@ -165,6 +165,17 @@ def main() -> int:
         note = ("S&P 500 点时成员掩码已应用（fja05680/sp500 起止表）；"
                 "退市成员价格不可得的残余幸存者偏差仍存在")
         target = PROJECT_DIR / "docs" / "results" / "09-us-factor-tests.md"
+    elif args.market == "crypto_cs":
+        from quantlab.crypto_cs import TOP_N, crypto_membership_mask, load_crypto_cs
+        raw = load_crypto_cs()
+        data = {"close": raw["close"], "volume": raw["dollar_volume"]}
+        monthly_index = month_end(data["close"]).index
+        membership_mask = crypto_membership_mask(
+            monthly_index, data["close"].columns, raw["dollar_volume"])
+        label = "加密截面（Binance USDT）"
+        note = (f"种子池=当前活跃前150（幸存偏差残余已声明）；"
+                f"成员=池内每月末 60 日美元成交额前 {TOP_N}（点时重排）")
+        target = PROJECT_DIR / "docs" / "results" / "18-crypto-cs-momentum.md"
     else:
         from quantlab.cn_data import UNIVERSES, cn_membership_mask, load_cn_daily
         universe = UNIVERSES["hs300" if args.market == "cn" else "zz500"]
