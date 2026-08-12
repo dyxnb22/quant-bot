@@ -60,6 +60,15 @@ health-uninstall: ## 卸载定时巡检
 review: ## LLM 交易复盘（ZIP/STRATEGY 可覆盖，需 DEEPSEEK_API_KEY）
 	.venv/bin/python -m quantlab.trade_review $(if $(ZIP),--zip $(ZIP)) --strategy $(or $(STRATEGY),EmaRsiStrategy)
 
+brief: ## LLM 值班日报（手动生成，需 DEEPSEEK_API_KEY）
+	.venv/bin/python -m quantlab.daily_brief
+
+brief-install: ## 安装每日 09:00 值班日报（launchd）
+	./scripts/brief_install.sh
+
+brief-uninstall: ## 卸载值班日报定时任务
+	./scripts/brief_uninstall.sh
+
 check: ## 一键体检：测试 + 风险审计 + 数据质量
 	.venv/bin/python -m pytest tests/ -q
 	.venv/bin/python -m quantlab.risk_policy
