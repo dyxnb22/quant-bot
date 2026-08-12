@@ -163,6 +163,31 @@ def load_industry() -> pd.DataFrame:
     return frame
 
 
+def fetch_index(years: int, code: str = "sh.000300") -> None:
+    """沪深 300 价格指数日线（基准列；注明不含股息的局限）。调用方负责 login。"""
+    start = (date.today() - timedelta(days=365 * years)).isoformat()
+    result = bs.query_history_k_data_plus(
+        code, "date,close", start_date=start, end_date=date.today().isoformat(),
+        frequency="d")
+    rows = []
+    while result.next():
+        rows.append(result.get_row_data())
+    frame = pd.DataFrame(rows, columns=["date", "close"])
+    frame["date"] = pd.to_datetime(frame["date"])
+    frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
+    CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    frame.to_feather(CN_DATA_DIR / "index.feather")
+    print(f"指数基准: {code} {len(frame)} 个交易日已落盘", flush=True)
+
+
+def load_index() -> pd.Series | None:
+    path = CN_DATA_DIR / "index.feather"
+    if not path.exists():
+        return None
+    frame = pd.read_feather(path)
+    return frame.set_index("date")["close"]
+
+
 def load_cn_daily() -> dict[str, pd.DataFrame]:
     out = {}
     for name in FIELDS:
@@ -200,6 +225,7 @@ def main() -> int:
             membership.to_feather(membership_file)
         tickers = sorted(membership["ticker"].unique())
         print(f"股池: 点时成分并集 {len(tickers)} 个标的", flush=True)
+        fetch_index(args.years)
         download_cn_daily(tickers, years=args.years, out_dir=out_dir)
         if args.refresh:
             # 校验通过才切换（逐文件 os.replace 原子替换），否则保留旧数据

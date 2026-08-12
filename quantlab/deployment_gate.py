@@ -87,10 +87,18 @@ def main() -> int:
                               cost_bps=20, industry_map=industry_map,
                               industry_neutral=True)
 
-    # 基准：点时股池等权（内部基准；指数基准待 sh.000300 数据接入后补列）
-    universe_monthly = forward.where(
-        mask.reindex(forward.index).fillna(False) if mask is not None else True)
-    benchmark = universe_monthly.mean(axis=1)
+    # 基准优先级：沪深 300 指数（价格指数，不含股息）> 点时股池等权（内部基准）
+    from quantlab.cn_data import load_index
+    index_series = load_index()
+    if index_series is not None:
+        index_monthly = index_series.resample("ME").last()
+        benchmark = index_monthly.pct_change().shift(-1)  # 与 forward 口径对齐（t 行 = t→t+1）
+        benchmark_name = "沪深300价格指数（不含股息）"
+    else:
+        universe_monthly = forward.where(
+            mask.reindex(forward.index).fillna(False) if mask is not None else True)
+        benchmark = universe_monthly.mean(axis=1)
+        benchmark_name = "点时股池等权（内部基准）"
     portfolio_monthly = base["monthly"]["net"]
     benchmark_aligned = benchmark.reindex(portfolio_monthly.index)
     rel = information_ratio(portfolio_monthly, benchmark_aligned)
@@ -106,7 +114,7 @@ def main() -> int:
     context = (f"可交易口径 {base['months']} 个月（年化 {base['annual_return']:+.2%}，"
                f"费用合计 {base['total_fees']:.0f} 元，容量峰值 {base['capacity_peak']:.1%}，"
                f"禁买 {base['blocked_buys']} / 禁卖 {base['blocked_sells']} 次）；"
-               f"基准 = 点时股池等权（指数基准待接入）")
+               f"基准 = {benchmark_name}")
     from quantlab.provenance import stamp
     rows = evaluate_gate(metrics)
     REPORT.write_text(render(rows, context) + f"\n\n---\n溯源: {stamp()}\n")

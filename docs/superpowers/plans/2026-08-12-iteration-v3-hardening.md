@@ -52,6 +52,27 @@ G1-G4 由 `quantlab/deployment_gate.py` 机检；G5 靠时间，无捷径。
 - [ ] N7 沪深 300 指数接入（cn_data 顺带抓取，供基准列）；12 号报告补基准相对指标
 - [ ] N8 晨间 Runbook 扩展（CN 数据落地后：批次2因子 → tradable sim → gate → 12号补基准 → 清单重生成）
 
+## 执行状态（2026-08-12 晚）
+
+- [x] N1 Newey-West t（IID 下与朴素 t 一致、正自相关下显著收缩，已入评估列）
+- [x] N2 tradable_sim（封板禁买/停牌顺延/印花税/整手/次日成交全部测试锁定）
+- [x] N3 deployment_gate G1-G5 机检（真实判定待数据）
+- [x] N4 data-check 覆盖 CN/US（当前正确 FAIL 于 CN 40% 覆盖）、原子刷新（staging→校验→os.replace）、溯源戳
+- [x] N5 前视检查：**无偏差**；递归检查：60 根启动蜡烛下 RSI 有 0.66% 递归方差 → 已按建议提升至 200 并重启 bot；`make ft-bias-check` 为策略变更发布闸门
+- [x] N6 成交对账：首笔数据点 SOL 入场滑点 **-1.3 bps**（限价单优于信号收盘价，符合预期；样本 <30 笔前仅证明管道）
+- [x] N7 指数基准接入 cn_data（今晚随下载任务抓取）；gate 基准优先用指数、缺失时用内部等权
+
+## 晨间 Runbook（v3 版，数据落地后依序执行）
+
+```bash
+tail -5 user_data/logs/cn_download.log     # 确认 622/622
+make manifest && make data-check           # CN 应转 OK（覆盖 ≥90%）
+make factors-cn-batch2                     # 13 号：EP/BP/SP/低换手（n_trials=9）
+.venv/bin/python -m quantlab.deployment_gate  # 14 号：G1-G5 判定（预期 G1/G5 不过——诚实结果）
+make momentum-list                         # 清单重生成（守卫要求股池 ≥250）
+# 登记册回填批次 2 判定；若 ≥2 非 REJECTED → 按 3.3 预登记复合因子
+```
+
 ## 明确不做（与评审一致）
 
 - 不再堆新市场 / ML / 界面；不缩短 G5 的时间要求；不用旧十年样本做任何新的择优。
