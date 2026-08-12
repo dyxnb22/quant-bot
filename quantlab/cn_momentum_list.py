@@ -65,6 +65,57 @@ def realized_performance(prev_tickers, universe, close_monthly: pd.DataFrame,
             "excess": list_return - benchmark_return, "months_gap": gap}
 
 
+COMPOSITE_DIR = PROJECT_DIR / "docs" / "research" / "cn-composite"
+
+
+def _generate_composite(data, universe_index, month_key, industry_map,
+                        name_map, mask, latest) -> None:
+    """复合候选清单（观察期）：同一标准部署规则，独立状态与账本规则。"""
+    from quantlab.factors import composite_mom_lto
+    from quantlab.forward_ledger import append_entry
+
+    factor = composite_mom_lto(data["close"], data["turn"])
+    if latest not in factor.index:
+        print("复合候选: 当期无复合因子截面，跳过")
+        return
+    row = factor.loc[latest]
+    if mask is not None:
+        row = row[mask.loc[latest].reindex(row.index).fillna(False)]
+    row = row.reindex(universe_index).dropna()
+
+    state_file = COMPOSITE_DIR / "state.json"
+    state = json.loads(state_file.read_text()) if state_file.exists() else {}
+    prior = [m for m in sorted(state) if m < month_key]
+    previous = set(state[prior[-1]]) if prior else set()
+    selected = target_positions(row, previous, enter_pct=0.2, exit_pct=0.4,
+                                industry_map=industry_map, industry_neutral=True)
+    top = row.reindex(list(selected)).dropna().sort_values(ascending=False)
+    weights = industry_weights(top.index, industry_map)
+
+    COMPOSITE_DIR.mkdir(parents=True, exist_ok=True)
+    lines = [
+        f"# CN 复合候选清单 {month_key}（观察期）",
+        "",
+        (f"- 生成: {datetime.now():%F %T} | 因子: composite_mom_lto（15 号 PASS 初检）"
+         f" | 规则: 缓冲20/40+行业中性（标准规则，非为复合优化）"),
+        (f"- 清单: {len(top)} 只（保留老持仓 {len(selected & previous)} 只）"
+         f" | 最大行业 {weights.iloc[0]:.0%}（{weights.index[0]}）"),
+        "",
+        DISCLAIMER,
+        "",
+        "| # | 代码 | 名称 | 复合分位 | 行业 |",
+        "|---|---|---|---|---|",
+    ]
+    for rank, (ticker, value) in enumerate(top.items(), 1):
+        lines.append(f"| {rank} | {ticker} | {name_map.get(ticker, '')} "
+                     f"| {value:.3f} | {industry_map.get(ticker) or '未分类'} |")
+    (COMPOSITE_DIR / f"{month_key}.md").write_text("\n".join(lines) + "\n")
+    state[month_key] = list(top.index)
+    state_file.write_text(json.dumps(state, ensure_ascii=False, indent=1))
+    if append_entry(month_key, list(top.index), note="标准规则（观察期候选）", rule="composite"):
+        print(f"前向账本: 已追加本月条目（composite，{len(top)} 只）")
+
+
 def main() -> int:
     from quantlab.locking import file_lock
 
@@ -177,7 +228,10 @@ def _run() -> int:
     # 前向账本（append-only，Gate G5 的唯一证据源）
     from quantlab.forward_ledger import append_entry
     if append_entry(month_key, list(top.index), note="缓冲20/40+行业中性（冻结口径）"):
-        print("前向账本: 已追加本月条目")
+        print("前向账本: 已追加本月条目（momentum）")
+
+    # 第二候选：复合因子（15 号 PASS，观察期候选——自己的前向记录自己攒）
+    _generate_composite(data, row.index, month_key, industry_map, name_map, mask, latest)
 
     print(f"清单: {RESEARCH_DIR / f'{month_key}.md'}（{len(top)} 只）")
     print(f"最大行业: {weights.index[0]} {weights.iloc[0]:.0%} | 平均相关 {correlation:.2f}")

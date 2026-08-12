@@ -71,6 +71,19 @@ def low_turnover(turn_daily: pd.DataFrame, window: int = 60) -> pd.DataFrame:
     return -turn_daily.rolling(window, min_periods=40).mean().resample("ME").last()
 
 
+def composite_mom_lto(close_daily: pd.DataFrame, turn_daily: pd.DataFrame) -> pd.DataFrame:
+    """复合因子（预登记于登记册第三批）：动量与低换手截面分位的等权平均。
+
+    双信号必须齐备（任一缺失 → 当期无值）；分位 0-1，值大 = 因子强。
+    """
+    momentum = momentum_12_1(month_end(close_daily))
+    turnover = low_turnover(turn_daily)
+    common = momentum.index.intersection(turnover.index)
+    momentum_pct = momentum.loc[common].rank(axis=1, pct=True)
+    turnover_pct = turnover.loc[common].rank(axis=1, pct=True)
+    return (momentum_pct + turnover_pct) / 2
+
+
 def forward_1m(close_monthly: pd.DataFrame) -> pd.DataFrame:
     """t 期行 = t → t+1 的未来一个月收益。"""
     return close_monthly.shift(-1) / close_monthly - 1

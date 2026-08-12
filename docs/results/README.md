@@ -16,4 +16,5 @@
 | [12-portfolio-engineering](12-portfolio-engineering.md) | 组合工程对比：朴素 Q5 vs 缓冲带 vs 缓冲+行业中性 |
 | [13-cn-value-factors](13-cn-value-factors.md) | 因子初检报告：A 股 沪深 300 |
 | [14-deployment-gate](14-deployment-gate.md) | Deployment Gate 判定（G1-G5） |
+| [15-cn-composite](15-cn-composite.md) | 因子初检报告：A 股 沪深 300 |
 | [factor-registry](factor-registry.md) | 因子登记册（living doc） |

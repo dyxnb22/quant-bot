@@ -17,18 +17,21 @@ def entries() -> list[dict]:
     return [json.loads(line) for line in LEDGER_FILE.read_text().splitlines() if line.strip()]
 
 
-def append_entry(month: str, tickers: list[str], note: str = "") -> bool:
-    """按月追加（同月已存在则跳过，返回 False）。"""
-    if any(e["month"] == month for e in entries()):
+def append_entry(month: str, tickers: list[str], note: str = "",
+                 rule: str = "momentum") -> bool:
+    """按 (月份, 规则) 追加（已存在则跳过，返回 False）。"""
+    if any(e["month"] == month and e.get("rule", "momentum") == rule for e in entries()):
         return False
     LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
-    record = {"month": month, "generated_at": datetime.now(timezone.utc).isoformat(),
+    record = {"month": month, "rule": rule,
+              "generated_at": datetime.now(timezone.utc).isoformat(),
               "n": len(tickers), "tickers": sorted(tickers), "note": note}
     with LEDGER_FILE.open("a") as fh:
         fh.write(json.dumps(record, ensure_ascii=False) + "\n")
     return True
 
 
-def forward_months(freeze_iso: str) -> int:
-    """冻结时刻之后生成的账本条目数 = 可主张的前向月度周期数。"""
-    return sum(1 for e in entries() if e["generated_at"] > freeze_iso)
+def forward_months(freeze_iso: str, rule: str = "momentum") -> int:
+    """冻结时刻之后、指定规则的账本条目数 = 该候选可主张的前向月度周期数。"""
+    return sum(1 for e in entries()
+               if e["generated_at"] > freeze_iso and e.get("rule", "momentum") == rule)

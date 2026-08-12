@@ -57,18 +57,25 @@ def test_newey_west_pvalue_direction():
 
 
 def test_registry_family_trials():
+    import pytest as _pytest
+
     from quantlab.registry import family_trials
-    assert family_trials("cn") == 9
-    assert family_trials("us") == 4
-    assert family_trials("crypto") == 8
+    # 不硬编码具体数值（登记数合法增长）；验证机制：正整数、已知下限、未知家族报错
+    assert family_trials("cn") >= 9
+    assert family_trials("us") >= 4
+    assert family_trials("crypto") >= 8
+    with _pytest.raises(KeyError):
+        family_trials("hk")
 
 
 def test_forward_ledger(tmp_path, monkeypatch):
     import quantlab.forward_ledger as ledger
     monkeypatch.setattr(ledger, "LEDGER_FILE", tmp_path / "ledger.jsonl")
     assert ledger.append_entry("2026-09", ["sh.600000", "sz.000001"]) is True
-    assert ledger.append_entry("2026-09", ["sh.600000"]) is False, "同月幂等"
+    assert ledger.append_entry("2026-09", ["sh.600000"]) is False, "同月同规则幂等"
+    assert ledger.append_entry("2026-09", ["sh.600000"], rule="composite") is True, "不同规则独立计数"
     assert ledger.forward_months("2026-08-12T00:00:00+00:00") == 1
+    assert ledger.forward_months("2026-08-12T00:00:00+00:00", rule="composite") == 1
     assert ledger.forward_months("2099-01-01T00:00:00+00:00") == 0
 
 

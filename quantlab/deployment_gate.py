@@ -123,7 +123,8 @@ def main() -> int:
         "ann_excess": rel["ann_excess"],
         "information_ratio": rel["information_ratio"],
         "stress_net_sharpe": stress["net_sharpe"],
-        "forward_months": ledger_forward_months(f"{FREEZE_DATE:%Y-%m-%d}T00:00:00+00:00"),
+        "forward_months": ledger_forward_months(
+            f"{FREEZE_DATE:%Y-%m-%d}T00:00:00+00:00", rule="momentum"),
     }
     context = (f"可交易口径 {base['months']} 个月（年化 {base['annual_return']:+.2%}，"
                f"费用 {base['total_fees']:.0f} 元，容量峰值 {base['capacity_peak']:.1%}，"

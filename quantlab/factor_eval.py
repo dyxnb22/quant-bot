@@ -13,9 +13,9 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 from quantlab.cross_section import long_short, quantile_portfolios, rank_ic, turnover
-from quantlab.factors import (forward_1m, illiquidity, low_turnover,
-                              low_volatility, momentum_12_1, month_end,
-                              short_reversal_1m, valuation_yield)
+from quantlab.factors import (composite_mom_lto, forward_1m, illiquidity,
+                              low_turnover, low_volatility, momentum_12_1,
+                              month_end, short_reversal_1m, valuation_yield)
 from quantlab.registry import family_trials
 from quantlab.stats_tests import (benjamini_hochberg, deflated_sharpe,
                                   newey_west_pvalue, newey_west_tstat,
@@ -30,13 +30,14 @@ FACTOR_BUILDERS = {
     "short_reversal_1m": lambda d: short_reversal_1m(month_end(d["close"])),
     "low_volatility": lambda d: low_volatility(d["close"]),
     "illiquidity": lambda d: illiquidity(d["close"], d["volume"]),
-    # 批次 2（需扩展字段，仅 A 股数据管道提供；登记册已预登记）
+    # 批次 2/3（需扩展字段，仅 A 股数据管道提供；登记册已预登记）
     "ep": lambda d: valuation_yield(d["pe"]),
     "bp": lambda d: valuation_yield(d["pb"]),
     "sp": lambda d: valuation_yield(d["ps"]),
     "low_turnover": lambda d: low_turnover(d["turn"]),
+    "composite_mom_lto": lambda d: composite_mom_lto(d["close"], d["turn"]),
 }
-BATCH2_FACTORS = ("ep", "bp", "sp", "low_turnover")
+BATCH2_FACTORS = ("ep", "bp", "sp", "low_turnover", "composite_mom_lto")
 
 
 def evaluate_factor(factor: pd.DataFrame, forward: pd.DataFrame,

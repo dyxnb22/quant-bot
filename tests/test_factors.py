@@ -103,3 +103,31 @@ def test_low_turnover_prefers_quiet():
     turn = pd.DataFrame({"QUIET": 0.5, "HOT": 8.0}, index=dates)
     row = low_turnover(turn).dropna().iloc[-1]
     assert row["QUIET"] > row["HOT"]
+
+
+def test_composite_mom_lto_averages_ranks():
+    from quantlab.factors import composite_mom_lto
+    n = 400
+    dates = pd.date_range("2023-01-02", periods=n, freq="B")
+    rng = np.random.default_rng(9)
+    # WIN：涨且低换手（双强）；MID：涨但高换手；LOSE：跌且高换手
+    close = pd.DataFrame({
+        "WIN": 100 * (1.002 ** np.arange(n)),
+        "MID": 100 * (1.002 ** np.arange(n)),
+        "LOSE": 100 * (0.999 ** np.arange(n)),
+    }, index=dates) + rng.normal(0, 0.01, (n, 3))
+    turn = pd.DataFrame({"WIN": 0.5, "MID": 9.0, "LOSE": 9.0}, index=dates)
+    composite = composite_mom_lto(close, turn).dropna(how="all")
+    row = composite.iloc[-1]
+    assert row["WIN"] > row["MID"] > row["LOSE"], "双强 > 单强 > 双弱"
+    assert row.max() <= 1.0 and row.min() >= 0.0
+
+
+def test_composite_requires_both_signals():
+    from quantlab.factors import composite_mom_lto
+    n = 400
+    dates = pd.date_range("2023-01-02", periods=n, freq="B")
+    close = pd.DataFrame({"A": 100.0, "B": 100.0}, index=dates)
+    turn = pd.DataFrame({"A": 1.0, "B": float("nan")}, index=dates)
+    composite = composite_mom_lto(close, turn)
+    assert composite["B"].dropna().empty, "换手缺失的标的不得有复合值"
