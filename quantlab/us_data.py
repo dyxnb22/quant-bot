@@ -21,6 +21,8 @@ from quantlab.strategy_loader import PROJECT_DIR
 US_DATA_DIR = PROJECT_DIR / "user_data" / "data" / "us"
 CONSTITUENTS_URL = ("https://raw.githubusercontent.com/datasets/s-and-p-500-companies/"
                     "main/data/constituents.csv")
+PIT_URL = ("https://raw.githubusercontent.com/fja05680/sp500/master/"
+           "sp500_ticker_start_end.csv")
 CHUNK_SIZE = 50
 
 
@@ -53,6 +55,33 @@ def download_us_daily(tickers: list[str], years: int = 4) -> Path:
     close.reset_index().to_feather(US_DATA_DIR / "close.feather")
     volume.reset_index().to_feather(US_DATA_DIR / "volume.feather")
     return US_DATA_DIR
+
+
+def pit_membership_mask(dates: pd.DatetimeIndex, tickers) -> pd.DataFrame:
+    """点时成员掩码：date × ticker 布尔表，True = 该日期该标的在 S&P 500 内。
+
+    消除"未来入选信息泄漏"（入选本身与过去表现相关）。已知残余偏差：
+    已退市成员的价格数据在 yfinance 不可得，多头收益仍略偏乐观。
+    """
+    rows = list(csv.DictReader(io.StringIO(_get(PIT_URL).decode())))
+    spells: dict[str, list] = {}
+    for row in rows:
+        ticker = row["ticker"].replace(".", "-")
+        start = pd.Timestamp(row["start_date"])
+        end = pd.Timestamp(row["end_date"]) if row["end_date"] else pd.Timestamp("2099-01-01")
+        spells.setdefault(ticker, []).append((start, end))
+    mask = pd.DataFrame(False, index=dates, columns=list(tickers))
+    unknown = 0
+    for ticker in mask.columns:
+        if ticker not in spells:
+            mask[ticker] = True  # 起止表缺失但确为当前成分：保留并计数
+            unknown += 1
+            continue
+        for start, end in spells[ticker]:
+            mask.loc[(mask.index >= start) & (mask.index <= end), ticker] = True
+    if unknown:
+        print(f"  点时掩码: {unknown} 个标的不在起止表中，按当前成分保留")
+    return mask
 
 
 def load_us_daily() -> dict[str, pd.DataFrame]:
