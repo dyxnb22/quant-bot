@@ -71,9 +71,11 @@ def download_cn_fundamentals(universe: str = "hs300", years: int = 10) -> Path:
     login = bs.login()
     if login.error_code != "0":
         raise RuntimeError(f"baostock 登录失败: {login.error_msg}")
+    slow_streak = 0
     try:
         buffer = []
         for i, ticker in enumerate(pending, 1):
+            started = time.monotonic()
             try:
                 rows = fetch_ticker_quarters(ticker, years)
             except Exception as error:
@@ -95,6 +97,17 @@ def download_cn_fundamentals(universe: str = "hs300", years: int = 10) -> Path:
                 atomic_write_feather(existing, target)
                 print(f"  {i}/{len(pending)} 已落盘（累计 {len(existing)} 行）",
                       flush=True)
+            # 限流自保护：正常约 15-20s/标的；连续 2 个 >90s 判定被限流，
+            # 存检查点退出——把干净会话留给下一次定时启动（02:30）续传
+            elapsed = time.monotonic() - started
+            slow_streak = slow_streak + 1 if elapsed > 90 else 0
+            if slow_streak >= 2:
+                existing = pd.concat([existing, pd.DataFrame(buffer)],
+                                     ignore_index=True)
+                atomic_write_feather(existing, target)
+                print(f"  限流嫌疑（连续 {slow_streak} 个标的 >90s），"
+                      f"已存检查点 {i}/{len(pending)}，退出待深夜续传", flush=True)
+                raise SystemExit(75)
     finally:
         bs.logout()
     return target
