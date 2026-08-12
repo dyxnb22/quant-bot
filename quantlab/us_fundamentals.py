@@ -33,10 +33,20 @@ QUARTER_DAYS = (70, 100)        # 季度报告期时长窗口
 ANNUAL_DAYS = (340, 380)
 
 
-def _fetch_json(url: str) -> dict:
+# 直连绕过本地代理：代理在持续请求下会 SSL EOF 后僵死（2026-08-12 实测两次卡死）
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+
+
+def _fetch_json(url: str, retries: int = 2) -> dict:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
+    for attempt in range(retries + 1):
+        try:
+            with _OPENER.open(request, timeout=30) as response:
+                return json.load(response)
+        except Exception:
+            if attempt == retries:
+                raise
+            time.sleep(2 * (attempt + 1))
 
 
 def ticker_cik_map() -> dict[str, int]:
