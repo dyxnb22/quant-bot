@@ -19,3 +19,6 @@ user_data/freqtrade.pid
 
 # 系统文件
 .DS_Store
+
+# freqtrade 运行数据库（bot 在根目录运行时生成）
+tradesv3*.sqlite*
