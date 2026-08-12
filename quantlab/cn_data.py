@@ -122,9 +122,10 @@ def download_cn_daily(tickers: list[str], years: int = 4) -> Path:
         frame = frame.set_index("date")
         for field, column in zip(FIELDS, ("close", "volume", "turn", "peTTM", "pbMRQ", "psTTM")):
             frames[field][ticker] = pd.to_numeric(frame[column], errors="coerce")
-        if i % 50 == 0:
+        if i % 25 == 0:
             _save(frames)
             print(f"  已下载 {i}/{len(pending)}（增量已落盘）", flush=True)
+        time.sleep(0.4)  # 礼貌间隔：降低触发服务端限流的概率（2026-08-12 实测被限速）
     _save(frames)
     if failed:
         print(f"  下载失败 {len(failed)} 个: {failed[:10]}", flush=True)
@@ -184,11 +185,16 @@ def main() -> int:
         print(f"baostock 登录失败: {login.error_msg}")
         return 1
     try:
-        month_ends = pd.date_range(end=date.today(), periods=args.years * 12, freq="ME")
-        print(f"抓取点时成分: {len(month_ends)} 个月末快照 ...", flush=True)
-        membership = fetch_hs300_membership(month_ends)
-        CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
-        membership.to_feather(CN_DATA_DIR / "membership.feather")
+        membership_file = CN_DATA_DIR / "membership.feather"
+        if membership_file.exists() and not args.refresh:
+            membership = pd.read_feather(membership_file)
+            print(f"点时成分使用缓存（{membership['date'].nunique()} 期快照）", flush=True)
+        else:
+            month_ends = pd.date_range(end=date.today(), periods=args.years * 12, freq="ME")
+            print(f"抓取点时成分: {len(month_ends)} 个月末快照 ...", flush=True)
+            membership = fetch_hs300_membership(month_ends)
+            CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+            membership.to_feather(membership_file)
         tickers = sorted(membership["ticker"].unique())
         print(f"股池: 点时成分并集 {len(tickers)} 个标的"
               f"（{len(month_ends)} 期快照，消除'未来入选'泄漏）", flush=True)
