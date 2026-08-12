@@ -24,6 +24,15 @@ us-data: ## 下载 S&P 500 日频数据（YEARS 可覆盖，默认 4）
 us-smoke: ## 美股截面管道冒烟（12-1 动量端到端）
 	.venv/bin/python -m quantlab.factors
 
+cn-data: ## 下载沪深300日频数据（baostock，YEARS 可覆盖）
+	.venv/bin/python -u -m quantlab.cn_data --years $(or $(YEARS),4)
+
+factors-us: ## 美股四因子初检（预登记协议）
+	.venv/bin/python -m quantlab.factor_eval --market us
+
+factors-cn: ## A股四因子初检（预登记协议）
+	.venv/bin/python -m quantlab.factor_eval --market cn
+
 test: ## 运行策略单元测试
 	.venv/bin/python -m pytest tests/ -v
 
