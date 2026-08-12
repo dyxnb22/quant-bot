@@ -37,7 +37,9 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
                       volume_daily: pd.DataFrame, capital: float = 300_000,
                       enter_pct: float = 0.2, exit_pct: float = 0.4,
                       industry_map: dict | None = None, industry_neutral: bool = True,
-                      min_names: int = 50) -> dict:
+                      min_names: int = 50, commission_bps: float = COMMISSION_BPS,
+                      stamp_bps: float = STAMP_TAX_BPS,
+                      writeoff_after_days: int = 60) -> dict:
     daily_index = close_daily.index
     change = close_daily.pct_change()
     fills = _fill_dates(daily_index, factor.index)
@@ -45,7 +47,7 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
     shares: dict[str, float] = {}
     cash = float(capital)
     records = []
-    blocked_buys = blocked_sells = too_expensive = 0
+    blocked_buys = blocked_sells = too_expensive = writeoffs = 0
     total_fees = 0.0
     prev_value = float(capital)
     capacity_peak = 0.0
@@ -57,6 +59,16 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
         price = close_daily.loc[fill_date]
         move = change.loc[fill_date]
         vol = volume_daily.loc[fill_date]
+
+        # 0) 幽灵资产清算：连续 writeoff_after_days 个交易日无有效价（退市/永久停牌）→ 减记为 0
+        for ticker in sorted(shares):
+            history = close_daily[ticker].loc[:fill_date]
+            last_valid = history.last_valid_index()
+            gap = (len(daily_index[(daily_index > last_valid) & (daily_index <= fill_date)])
+                   if last_valid is not None else writeoff_after_days + 1)
+            if gap > writeoff_after_days:
+                del shares[ticker]
+                writeoffs += 1
 
         # 1) 目标名单（研究口径），随后应用可交易性约束
         row = factor.loc[signal]
@@ -74,8 +86,8 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
                 blocked_sells += 1
                 continue
             proceeds = shares[ticker] * p
-            fee = max(proceeds * COMMISSION_BPS / 1e4, MIN_COMMISSION) \
-                + proceeds * STAMP_TAX_BPS / 1e4
+            fee = max(proceeds * commission_bps / 1e4, MIN_COMMISSION) \
+                + proceeds * stamp_bps / 1e4
             cash += proceeds - fee
             total_fees += fee
             del shares[ticker]
@@ -101,7 +113,7 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
                 continue
             quantity = lots * LOT
             notional = quantity * p
-            fee = max(notional * COMMISSION_BPS / 1e4, MIN_COMMISSION)
+            fee = max(notional * commission_bps / 1e4, MIN_COMMISSION)
             if notional + fee > cash:
                 too_expensive += 1
                 continue
@@ -138,7 +150,8 @@ def simulate_tradable(factor: pd.DataFrame, close_daily: pd.DataFrame, *,
         "net_sharpe": float(net.mean() / net.std()) if net.std() > 0 else 0.0,
         "max_drawdown": float((equity / equity.cummax() - 1).min()),
         "blocked_buys": blocked_buys, "blocked_sells": blocked_sells,
-        "too_expensive": too_expensive, "total_fees": float(total_fees),
+        "too_expensive": too_expensive, "writeoffs": writeoffs,
+        "total_fees": float(total_fees),
         "capacity_peak": float(capacity_peak),
         "avg_cash_ratio": float(monthly["cash_ratio"].mean()),
     }

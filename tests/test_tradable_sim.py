@@ -55,6 +55,28 @@ def test_tradable_constraints_and_fees():
     assert monthly["net"].notna().all()
 
 
+def test_ghost_asset_writeoff():
+    """持仓连续 60 交易日无有效价 → 清算减记为 0（不再按 ffill 幽灵估值）。"""
+    days = pd.date_range("2024-01-02", "2024-09-30", freq="B")
+    close = pd.DataFrame({"GOOD": 100.0, "GHOST": 100.0}, index=days)
+    volume = pd.DataFrame(1e6, index=days, columns=close.columns)
+    dead_from = days[days >= "2024-02-15"]
+    close.loc[dead_from, "GHOST"] = np.nan
+    volume.loc[dead_from, "GHOST"] = 0.0
+
+    ends = close.resample("ME").last().index
+    factor = pd.DataFrame(float("nan"), index=ends[:8], columns=close.columns)
+    factor["GOOD"] = 2.0
+    factor.iloc[0, factor.columns.get_loc("GHOST")] = 1.0  # 仅首月入选
+
+    result = simulate_tradable(factor, close, volume_daily=volume, capital=200_000,
+                               enter_pct=1.0, exit_pct=1.0, min_names=1,
+                               industry_neutral=False)
+    assert result["writeoffs"] == 1, "长期无价持仓必须被清算"
+    assert result["monthly"]["net"].min() < -0.25, "清算损失必须体现在净值中"
+    assert result["monthly"]["n_holdings"].iloc[-1] == 1
+
+
 def test_next_day_fill_prices_used():
     """月末信号必须用次一交易日价格成交：错过月末与成交日之间的跳空。"""
     days = pd.date_range("2024-01-02", "2024-03-29", freq="B")

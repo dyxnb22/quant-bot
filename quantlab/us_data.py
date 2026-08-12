@@ -57,16 +57,29 @@ def download_us_daily(tickers: list[str], years: int = 4) -> Path:
     return US_DATA_DIR
 
 
+def _load_pit_table() -> pd.DataFrame:
+    """PIT 起止表：本地缓存（进数据指纹），仅缺失时才从上游拉取（P1-12）。"""
+    cache = US_DATA_DIR / "pit_start_end.feather"
+    if cache.exists():
+        return pd.read_feather(cache)
+    rows = list(csv.DictReader(io.StringIO(_get(PIT_URL).decode())))
+    frame = pd.DataFrame(rows)
+    US_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    frame.to_feather(cache)
+    print(f"  点时起止表已缓存: {cache.name}（{len(frame)} 行）")
+    return frame
+
+
 def pit_membership_mask(dates: pd.DatetimeIndex, tickers) -> pd.DataFrame:
     """点时成员掩码：date × ticker 布尔表，True = 该日期该标的在 S&P 500 内。
 
-    消除"未来入选信息泄漏"（入选本身与过去表现相关）。已知残余偏差：
-    已退市成员的价格数据在 yfinance 不可得，多头收益仍略偏乐观。
+    fail-closed（P1-12）：不在起止表中的标的按"全程不在指数内"处理——
+    宁可少样本，不引入未来入选泄漏。已知残余偏差：已退市成员价格不可得。
     """
-    rows = list(csv.DictReader(io.StringIO(_get(PIT_URL).decode())))
+    table = _load_pit_table()
     spells: dict[str, list] = {}
-    for row in rows:
-        ticker = row["ticker"].replace(".", "-")
+    for _, row in table.iterrows():
+        ticker = str(row["ticker"]).replace(".", "-")
         start = pd.Timestamp(row["start_date"])
         end = pd.Timestamp(row["end_date"]) if row["end_date"] else pd.Timestamp("2099-01-01")
         spells.setdefault(ticker, []).append((start, end))
@@ -74,13 +87,12 @@ def pit_membership_mask(dates: pd.DatetimeIndex, tickers) -> pd.DataFrame:
     unknown = 0
     for ticker in mask.columns:
         if ticker not in spells:
-            mask[ticker] = True  # 起止表缺失但确为当前成分：保留并计数
-            unknown += 1
+            unknown += 1  # fail-closed：保持 False
             continue
         for start, end in spells[ticker]:
             mask.loc[(mask.index >= start) & (mask.index <= end), ticker] = True
     if unknown:
-        print(f"  点时掩码: {unknown} 个标的不在起止表中，按当前成分保留")
+        print(f"  点时掩码: {unknown} 个标的不在起止表中，已按 fail-closed 排除")
     return mask
 
 

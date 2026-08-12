@@ -22,6 +22,11 @@ CONFIGS = {
 
 
 def main() -> int:
+    import os
+    if os.environ.get("FROZEN_OVERRIDE") != "1":
+        print("已冻结（2026-08-12）：2016-2026 样本已退役，本脚本仅供历史复现（12 号报告）。\n"
+              "确需重跑：FROZEN_OVERRIDE=1 make ...，且结果不得用于任何口径择优。")
+        return 1
     data = load_cn_daily()
     close_monthly = month_end(data["close"])
     factor = momentum_12_1(close_monthly)

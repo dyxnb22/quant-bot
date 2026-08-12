@@ -159,8 +159,7 @@ def load_industry() -> pd.DataFrame:
         frame = fetch_industry()
     finally:
         bs.logout()
-    CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    frame.to_feather(path)
+    atomic_write_feather(frame, path)
     return frame
 
 
@@ -176,8 +175,7 @@ def fetch_index(years: int, code: str = "sh.000300") -> None:
     frame = pd.DataFrame(rows, columns=["date", "close"])
     frame["date"] = pd.to_datetime(frame["date"])
     frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
-    CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    frame.to_feather(CN_DATA_DIR / "index.feather")
+    atomic_write_feather(frame, CN_DATA_DIR / "index.feather")
     print(f"指数基准: {code} {len(frame)} 个交易日已落盘", flush=True)
 
 
@@ -199,47 +197,70 @@ def load_cn_daily() -> dict[str, pd.DataFrame]:
     return out
 
 
+def atomic_write_feather(frame: pd.DataFrame, target: Path) -> None:
+    """单文件原子写：临时文件 + os.replace。"""
+    import os
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temp = target.with_suffix(".tmp.feather")
+    frame.to_feather(temp)
+    os.replace(temp, target)
+
+
 def main() -> int:
+    from quantlab.locking import file_lock
+
     parser = argparse.ArgumentParser(description="下载沪深 300 日频数据（baostock）")
     parser.add_argument("--years", type=int, default=10)
     parser.add_argument("--refresh", action="store_true",
-                        help="staging 全量重下 → 校验 → 原子切换（旧数据全程可用）")
+                        help="清空 staging 全量重下（否则断点续传 staging）")
     args = parser.parse_args()
     staging = CN_DATA_DIR / "staging"
-    out_dir = staging if args.refresh else CN_DATA_DIR
+    # P0 修复：live 目录只接受"校验通过后的原子切换"，下载一律写 staging。
+    # 断点续传也发生在 staging；staging 为空且 live 完整时以 live 为种子（拷贝）。
     if args.refresh:
-        print(f"原子刷新模式：下载至 {staging}，校验通过后切换", flush=True)
+        for name in FIELDS:
+            (staging / f"{name}.feather").unlink(missing_ok=True)
+        print("已清空 staging（--refresh 全量重下）", flush=True)
+
     login = bs.login()
     if login.error_code != "0":
         print(f"baostock 登录失败: {login.error_msg}")
         return 1
     try:
-        membership_file = CN_DATA_DIR / "membership.feather"
-        if membership_file.exists() and not args.refresh:
-            membership = pd.read_feather(membership_file)
-            print(f"点时成分使用缓存（{membership['date'].nunique()} 期快照）", flush=True)
-        else:
-            month_ends = pd.date_range(end=date.today(), periods=args.years * 12, freq="ME")
-            print(f"抓取点时成分: {len(month_ends)} 个月末快照 ...", flush=True)
-            membership = fetch_hs300_membership(month_ends)
-            CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
-            membership.to_feather(membership_file)
-        tickers = sorted(membership["ticker"].unique())
-        print(f"股池: 点时成分并集 {len(tickers)} 个标的", flush=True)
-        fetch_index(args.years)
-        download_cn_daily(tickers, years=args.years, out_dir=out_dir)
-        if args.refresh:
-            # 校验通过才切换（逐文件 os.replace 原子替换），否则保留旧数据
+        with file_lock("cn_data"):
+            membership_file = CN_DATA_DIR / "membership.feather"
+            if membership_file.exists() and not args.refresh:
+                membership = pd.read_feather(membership_file)
+                print(f"点时成分使用缓存（{membership['date'].nunique()} 期快照）", flush=True)
+            else:
+                month_ends = pd.date_range(end=date.today(), periods=args.years * 12, freq="ME")
+                print(f"抓取点时成分: {len(month_ends)} 个月末快照 ...", flush=True)
+                membership = fetch_hs300_membership(month_ends)
+                atomic_write_feather(membership, membership_file)
+            tickers = sorted(membership["ticker"].unique())
+            print(f"股池: 点时成分并集 {len(tickers)} 个标的", flush=True)
+            fetch_index(args.years)
+
+            staging.mkdir(parents=True, exist_ok=True)
+            if (not (staging / "close.feather").exists()
+                    and all((CN_DATA_DIR / f"{f}.feather").exists() for f in FIELDS)):
+                import shutil
+                for name in FIELDS:
+                    shutil.copy(CN_DATA_DIR / f"{name}.feather", staging / f"{name}.feather")
+                print("staging 以 live 数据为种子（增量补齐）", flush=True)
+            download_cn_daily(tickers, years=args.years, out_dir=staging)
+
             staged = pd.read_feather(staging / "close.feather")
             coverage = (staged.shape[1] - 1) / len(tickers)
             if coverage < 0.9:
-                print(f"校验失败：staging 覆盖率 {coverage:.0%} < 90%，不切换（旧数据保留）")
+                print(f"校验未过：staging 覆盖率 {coverage:.0%} < 90%，"
+                      f"live 数据保持不变（下次运行自动续传 staging）")
                 return 1
             import os
             for name in FIELDS:
                 os.replace(staging / f"{name}.feather", CN_DATA_DIR / f"{name}.feather")
             staging.rmdir()
-            print(f"校验通过（覆盖率 {coverage:.0%}），已原子切换", flush=True)
+            print(f"校验通过（覆盖率 {coverage:.0%}），已原子切换 live", flush=True)
     finally:
         bs.logout()
     close = load_cn_daily()["close"]

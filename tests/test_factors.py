@@ -39,12 +39,23 @@ def test_forward_return_alignment():
     assert forward.iloc[-1].isna().all(), "最后一期没有未来收益"
 
 
-def test_month_end_resample():
+def test_month_end_resample_drops_partial_month():
     daily = pd.DataFrame(
         {"A": np.arange(1, 63, dtype=float)},
-        index=pd.date_range("2024-01-01", periods=62, freq="B"))
+        index=pd.date_range("2024-01-01", periods=62, freq="B"))  # 止于 2024-03-27
     monthly = month_end(daily)
     assert monthly.index.is_month_end.all()
+    assert monthly.index[-1].month == 2, "3 月未完成，必须剔除"
+    kept = month_end(daily, drop_partial=False)
+    assert kept.index[-1].month == 3
+
+
+def test_month_end_keeps_complete_month():
+    daily = pd.DataFrame(
+        {"A": 1.0},
+        index=pd.date_range("2024-01-01", "2024-02-29", freq="B"))  # 2/29 周四为当月最后交易日
+    monthly = month_end(daily)
+    assert monthly.index[-1].month == 2, "已收满的月份必须保留"
 
 
 def test_short_reversal_negates_last_month():

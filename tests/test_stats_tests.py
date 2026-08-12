@@ -47,6 +47,31 @@ def test_permutation_pvalue():
     assert 0.1 < permutation_pvalue(noise, seed=1) < 0.9
 
 
+def test_newey_west_pvalue_direction():
+    from quantlab.stats_tests import newey_west_pvalue
+    rng = np.random.default_rng(2)
+    strong = rng.normal(0.5, 0.5, 200)
+    noise = rng.normal(0.0, 1.0, 200)
+    assert newey_west_pvalue(strong) < 0.01
+    assert 0.05 < newey_west_pvalue(noise) < 0.95
+
+
+def test_registry_family_trials():
+    from quantlab.registry import family_trials
+    assert family_trials("cn") == 9
+    assert family_trials("us") == 4
+    assert family_trials("crypto") == 8
+
+
+def test_forward_ledger(tmp_path, monkeypatch):
+    import quantlab.forward_ledger as ledger
+    monkeypatch.setattr(ledger, "LEDGER_FILE", tmp_path / "ledger.jsonl")
+    assert ledger.append_entry("2026-09", ["sh.600000", "sz.000001"]) is True
+    assert ledger.append_entry("2026-09", ["sh.600000"]) is False, "同月幂等"
+    assert ledger.forward_months("2026-08-12T00:00:00+00:00") == 1
+    assert ledger.forward_months("2099-01-01T00:00:00+00:00") == 0
+
+
 def test_benjamini_hochberg():
     # 教科书例子：p = [0.01, 0.04, 0.03, 0.005] @ alpha=0.05 → 全部通过
     assert benjamini_hochberg([0.01, 0.04, 0.03, 0.005]) == [True, True, True, True]

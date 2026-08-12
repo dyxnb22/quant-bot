@@ -62,65 +62,81 @@ def render(rows: list[dict], context: str) -> str:
     return "\n".join(lines)
 
 
+def _benchmark_on_fill_intervals(index_series: pd.Series,
+                                 monthly: pd.DataFrame,
+                                 daily_end) -> pd.Series:
+    """基准收益按组合相同的成交日区间计算（P1-05：同风险区间才可比）。"""
+    idx = index_series.sort_index().ffill()
+    fill_dates = list(monthly["fill_date"])
+    boundaries = fill_dates + [daily_end]
+    values = idx.reindex(pd.DatetimeIndex(boundaries), method="ffill")
+    returns = [float(values.iloc[i + 1] / values.iloc[i] - 1)
+               for i in range(len(fill_dates))]
+    return pd.Series(returns, index=monthly.index)
+
+
 def main() -> int:
-    from quantlab.cn_data import cn_membership_mask, load_cn_daily, load_industry
-    from quantlab.factors import forward_1m, momentum_12_1, month_end
+    from scipy.stats import kurtosis, skew
+
+    from quantlab.cn_data import cn_membership_mask, load_cn_daily, load_index, load_industry
+    from quantlab.factors import momentum_12_1, month_end
+    from quantlab.forward_ledger import forward_months as ledger_forward_months
+    from quantlab.locking import file_lock
+    from quantlab.registry import family_trials
     from quantlab.stats_tests import deflated_sharpe
     from quantlab.tradable_sim import simulate_tradable
 
-    data = load_cn_daily()
-    close_monthly = month_end(data["close"])
-    factor = momentum_12_1(close_monthly)
-    mask = cn_membership_mask(factor.index, data["close"].columns)
-    if mask is not None:
-        factor = factor.where(mask.reindex(factor.index).fillna(False))
-    industry = load_industry()
-    industry_map = dict(zip(industry["code"], industry["industry"]))
+    with file_lock("cn_data"):
+        data = load_cn_daily()
+        close_monthly = month_end(data["close"])
+        factor = momentum_12_1(close_monthly)
+        mask = cn_membership_mask(factor.index, data["close"].columns)
+        if mask is not None:
+            factor = factor.where(mask.reindex(factor.index).fillna(False))
+        industry = load_industry()
+        industry_map = dict(zip(industry["code"], industry["industry"]))
 
-    base = simulate_tradable(factor, data["close"], volume_daily=data["volume"],
-                             industry_map=industry_map)
+        # G1-G4 同引擎（协议 v3）：基线成本 与 成本翻倍（佣金/印花均 ×2）
+        base = simulate_tradable(factor, data["close"], volume_daily=data["volume"],
+                                 industry_map=industry_map)
+        stress = simulate_tradable(factor, data["close"], volume_daily=data["volume"],
+                                   industry_map=industry_map,
+                                   commission_bps=5.0, stamp_bps=10.0)
 
-    # G4 成本翻倍压力：以研究口径模拟（成本参数可调）近似
-    from quantlab.portfolio_sim import simulate as research_sim
-    forward = forward_1m(close_monthly)
-    stress_res = research_sim(factor, forward, enter_pct=0.2, exit_pct=0.4,
-                              cost_bps=20, industry_map=industry_map,
-                              industry_neutral=True)
+        index_series = load_index()
+        portfolio_monthly = base["monthly"]["net"]
+        if index_series is not None:
+            benchmark_aligned = _benchmark_on_fill_intervals(
+                index_series, base["monthly"], data["close"].index.max())
+            benchmark_name = "沪深300价格指数（不含股息；按相同成交日区间）"
+        else:
+            benchmark_aligned = pd.Series(float("nan"), index=portfolio_monthly.index)
+            benchmark_name = "缺失（指数数据未落地，G2/G3 无法判定）"
+        rel = information_ratio(portfolio_monthly, benchmark_aligned)
 
-    # 基准优先级：沪深 300 指数（价格指数，不含股息）> 点时股池等权（内部基准）
-    from quantlab.cn_data import load_index
-    index_series = load_index()
-    if index_series is not None:
-        index_monthly = index_series.resample("ME").last()
-        benchmark = index_monthly.pct_change().shift(-1)  # 与 forward 口径对齐（t 行 = t→t+1）
-        benchmark_name = "沪深300价格指数（不含股息）"
-    else:
-        universe_monthly = forward.where(
-            mask.reindex(forward.index).fillna(False) if mask is not None else True)
-        benchmark = universe_monthly.mean(axis=1)
-        benchmark_name = "点时股池等权（内部基准）"
-    portfolio_monthly = base["monthly"]["net"]
-    benchmark_aligned = benchmark.reindex(portfolio_monthly.index)
-    rel = information_ratio(portfolio_monthly, benchmark_aligned)
-
-    forward_months = len([d for d in portfolio_monthly.index if d > FREEZE_DATE])
+    net = portfolio_monthly.dropna()
     metrics = {
-        "dsr": deflated_sharpe(base["net_sharpe"], max(base["months"], 2), 9),
+        "dsr": deflated_sharpe(
+            base["net_sharpe"], max(base["months"], 2), family_trials("cn"),
+            skew=float(skew(net)) if len(net) > 2 else 0.0,
+            kurt=float(kurtosis(net, fisher=False)) if len(net) > 3 else 3.0),
         "ann_excess": rel["ann_excess"],
         "information_ratio": rel["information_ratio"],
-        "stress_net_sharpe": stress_res["net_sharpe"],
-        "forward_months": forward_months,
+        "stress_net_sharpe": stress["net_sharpe"],
+        "forward_months": ledger_forward_months(f"{FREEZE_DATE:%Y-%m-%d}T00:00:00+00:00"),
     }
     context = (f"可交易口径 {base['months']} 个月（年化 {base['annual_return']:+.2%}，"
-               f"费用合计 {base['total_fees']:.0f} 元，容量峰值 {base['capacity_peak']:.1%}，"
-               f"禁买 {base['blocked_buys']} / 禁卖 {base['blocked_sells']} 次）；"
-               f"基准 = {benchmark_name}")
+               f"费用 {base['total_fees']:.0f} 元，容量峰值 {base['capacity_peak']:.1%}，"
+               f"禁买 {base['blocked_buys']}/禁卖 {base['blocked_sells']}/清算 {base['writeoffs']}）；"
+               f"压力口径 = 同引擎佣金印花×2；基准 = {benchmark_name}；"
+               f"DSR 用真实偏度/峰度与登记册 n_trials={family_trials('cn')}；"
+               f"G5 证据源 = 前向账本（append-only）")
     from quantlab.provenance import stamp
     rows = evaluate_gate(metrics)
     REPORT.write_text(render(rows, context) + f"\n\n---\n溯源: {stamp()}\n")
     print(render(rows, context))
     print(f"\n报告: {REPORT}")
-    return 0
+    return 0 if all(r["ok"] for r in rows) else 1  # 未通过 → 非零退出（P1-04）
 
 
 if __name__ == "__main__":

@@ -18,9 +18,8 @@ cat > "$PLIST" <<EOF
     <key>Label</key><string>${LABEL}</string>
     <key>ProgramArguments</key>
     <array>
-        <string>${PROJECT_DIR}/.venv/bin/python</string>
-        <string>-u</string><string>-m</string><string>quantlab.cn_data</string>
-        <string>--years</string><string>10</string>
+        <string>/bin/bash</string><string>-c</string>
+        <string>cd "${PROJECT_DIR}" &amp;&amp; .venv/bin/python -u -m quantlab.cn_data --years 10 &amp;&amp; launchctl bootout "gui/$(id -u)/${LABEL}"</string>
     </array>
     <key>WorkingDirectory</key><string>${PROJECT_DIR}</string>
     <key>StartCalendarInterval</key>
@@ -32,4 +31,4 @@ cat > "$PLIST" <<EOF
 EOF
 chmod 600 "$PLIST"
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
-echo "深夜下载任务已安装（${LABEL}，02:30 断点续传，日志 user_data/logs/cn_download.log）"
+echo "深夜下载任务已安装（${LABEL}，02:30 断点续传，成功后自卸载，日志 user_data/logs/cn_download.log）"

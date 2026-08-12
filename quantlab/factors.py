@@ -19,8 +19,17 @@ SMOKE_REPORT = PROJECT_DIR / "docs" / "results" / "08-us-pipeline-smoke.md"
 MIN_NAMES_PER_MONTH = 100
 
 
-def month_end(close_daily: pd.DataFrame) -> pd.DataFrame:
-    return close_daily.resample("ME").last()
+def month_end(close_daily: pd.DataFrame, drop_partial: bool = True) -> pd.DataFrame:
+    """月末重采样；默认剔除未完成月（P1-09：部分月被标为月末会污染 IC/组合/Gate）。
+
+    完成判定：面板最后一个交易日的次一工作日已属于下一个月。
+    """
+    monthly = close_daily.resample("ME").last()
+    if drop_partial and len(close_daily) and len(monthly):
+        last_day = close_daily.index.max()
+        if (last_day + pd.offsets.BDay(1)).month == last_day.month:
+            monthly = monthly.iloc[:-1]
+    return monthly
 
 
 def momentum_12_1(close_monthly: pd.DataFrame) -> pd.DataFrame:

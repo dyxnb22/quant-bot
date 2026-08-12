@@ -18,6 +18,8 @@ jobs:
           cache-dependency-path: requirements.lock
       - name: Install dependencies
         run: pip install -r requirements.lock
+      - name: Static analysis (ruff)
+        run: ruff check quantlab/ tests/ user_data/strategies/
       - name: Unit tests
         run: python -m pytest tests/ -q
       - name: Risk policy audit

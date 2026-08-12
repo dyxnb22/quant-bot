@@ -62,7 +62,8 @@ def build_user_prompt() -> str:
     try:
         profit = _api_get("/profit", env)
         lines.append(
-            f"累计: 平仓 {profit.get('trade_count', 0)} 笔 | "
+            f"累计: 平仓 {profit.get('closed_trade_count', 0)} 笔 / "
+            f"总交易 {profit.get('trade_count', 0)} | "
             f"已实现盈亏 {profit.get('profit_closed_coin', 0):.2f} USDT | "
             f"胜率 {profit.get('winrate', 0) * 100:.1f}% | "
             f"最大回撤 {profit.get('max_drawdown', 0) * 100:.2f}%")

@@ -75,6 +75,15 @@ def newey_west_tstat(series, lags: int | None = None) -> float:
     return float(values.mean() / math.sqrt(long_run_var / n))
 
 
+def newey_west_pvalue(series, lags: int | None = None) -> float:
+    """NW t 的单侧 p 值（均值 > 0，正态近似）。
+
+    协议 v3（2026-08-12 预登记）：月频 IC 序列相关下，新批次显著性以此为准；
+    符号翻转置换检验保留为信息列（其可交换性假设在序列相关下不成立）。
+    """
+    return float(1 - norm.cdf(newey_west_tstat(series, lags)))
+
+
 def benjamini_hochberg(pvalues, alpha: float = 0.05) -> list[bool]:
     """BH 过程控制 FDR：返回每个假设校正后是否显著（与输入同序）。"""
     p = np.asarray(pvalues, dtype=float)

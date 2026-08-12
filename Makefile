@@ -7,10 +7,10 @@ CFG := --config config/config.json
 help: ## 显示所有命令
 	@grep -E '^[a-z-]+:.*##' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-12s %s\n", $$1, $$2}'
 
-setup: ## 创建虚拟环境并安装依赖
+setup: ## 创建虚拟环境并按锁文件安装依赖（可复现）
 	python3 -m venv .venv
 	.venv/bin/pip install --upgrade pip wheel
-	.venv/bin/pip install "freqtrade[hyperopt]" pytest
+	.venv/bin/pip install -r requirements.lock
 
 data: ## 下载/增量更新历史数据
 	./scripts/download_data.sh
@@ -35,7 +35,7 @@ factors-cn: ## A股四因子初检（预登记协议）
 
 factors-cn-batch2: ## A股批次2检验：EP/BP/SP/低换手（需深夜数据落地后运行）
 	.venv/bin/python -m quantlab.factor_eval --market cn \
-		--factors ep bp sp low_turnover --n-trials 9 \
+		--factors ep bp sp low_turnover \
 		--report-to docs/results/13-cn-value-factors.md
 
 cn-data-refresh: ## 全量刷新A股行情（月度更新用，先存档 manifest）
@@ -78,9 +78,10 @@ recon: ## 成交对账（dry-run 成交 vs 回测假设滑点）
 log: ## 跟踪模拟盘日志
 	tail -f user_data/logs/freqtrade.log
 
-ft-bias-check: ## Freqtrade 官方前视/递归偏差检查（策略变更后的发布闸门）
-	.venv/bin/freqtrade lookahead-analysis $(CFG) --config config/config.bias-check.json --strategy $(or $(STRATEGY),EmaRsiStrategy) --timerange 20250101-20260101
-	.venv/bin/freqtrade recursive-analysis $(CFG) --strategy $(or $(STRATEGY),EmaRsiStrategy) --timerange 20250101-20250401 --startup-candle 100 199 399 499 999
+ft-bias-check: ## Freqtrade 官方前视/递归偏差检查（策略变更后的发布闸门，输出归档）
+	mkdir -p user_data/logs/bias
+	.venv/bin/freqtrade lookahead-analysis $(CFG) --config config/config.bias-check.json --strategy $(or $(STRATEGY),EmaRsiStrategy) --timerange 20250101-20260101 2>&1 | tee "user_data/logs/bias/$$(date +%F)-$(or $(STRATEGY),EmaRsiStrategy)-lookahead.log"
+	.venv/bin/freqtrade recursive-analysis $(CFG) --strategy $(or $(STRATEGY),EmaRsiStrategy) --timerange 20250101-20250401 --startup-candle 100 199 399 499 999 2>&1 | tee "user_data/logs/bias/$$(date +%F)-$(or $(STRATEGY),EmaRsiStrategy)-recursive.log"
 
 audit: ## 风险政策审计（config + 策略生效参数）
 	.venv/bin/python -m quantlab.risk_policy

@@ -50,20 +50,32 @@ def avg_pairwise_correlation(close_daily: pd.DataFrame, tickers, window: int = 6
     return float((corr.sum().sum() - n) / (n * (n - 1)))
 
 
-def realized_performance(prev_tickers, universe, close_monthly: pd.DataFrame) -> dict:
-    """上期清单从上月末到最新月末的等权收益 vs 成分等权基准。"""
-    window = close_monthly.iloc[-2:]
-    returns = window.iloc[-1] / window.iloc[0] - 1
+def realized_performance(prev_tickers, universe, close_monthly: pd.DataFrame,
+                         from_month: str, to_month: str) -> dict | None:
+    """按明确月份标签结算（P1-11：不再取"面板最后两行"，漏月可被察觉）。"""
+    labels = {f"{d:%Y-%m}": d for d in close_monthly.index}
+    if from_month not in labels or to_month not in labels:
+        return None
+    start, end = labels[from_month], labels[to_month]
+    returns = close_monthly.loc[end] / close_monthly.loc[start] - 1
     list_return = float(returns.reindex(prev_tickers).mean())
     benchmark_return = float(returns.reindex(universe).mean())
+    gap = (end.year * 12 + end.month) - (start.year * 12 + start.month)
     return {"list_return": list_return, "benchmark_return": benchmark_return,
-            "excess": list_return - benchmark_return}
+            "excess": list_return - benchmark_return, "months_gap": gap}
 
 
 def main() -> int:
+    from quantlab.locking import file_lock
+
     parser = argparse.ArgumentParser(description="生成 CN 动量月度研究清单")
     parser.parse_args()
 
+    with file_lock("cn_data"):
+        return _run()
+
+
+def _run() -> int:
     data = load_cn_daily()
     close_daily = data["close"]
     age_days = (datetime.now() - close_daily.index[-1]).days
@@ -101,15 +113,18 @@ def main() -> int:
 
     RESEARCH_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 跟踪上期清单表现（若上期存在且不是本月）
+    # 跟踪上期清单表现（按明确月份标签结算；跨月缺口显式标注）
     tracking_row = None
     if previous_months:
         prev_month = previous_months[-1]
         universe = list(row.index)
-        perf = realized_performance(state[prev_month], universe, close_monthly)
-        tracking_row = (f"| {prev_month} | {len(state[prev_month])} "
-                        f"| {perf['list_return']:+.2%} | {perf['benchmark_return']:+.2%} "
-                        f"| {perf['excess']:+.2%} |")
+        perf = realized_performance(state[prev_month], universe, close_monthly,
+                                    prev_month, month_key)
+        if perf:
+            gap_note = "" if perf["months_gap"] == 1 else f"（跨 {perf['months_gap']} 月）"
+            tracking_row = (f"| {prev_month}{gap_note} | {len(state[prev_month])} "
+                            f"| {perf['list_return']:+.2%} | {perf['benchmark_return']:+.2%} "
+                            f"| {perf['excess']:+.2%} |")
 
     lines = [
         f"# CN 动量研究清单 {month_key}",
@@ -158,6 +173,11 @@ def main() -> int:
 
     state[month_key] = list(top.index)
     STATE_FILE.write_text(json.dumps(state, ensure_ascii=False, indent=1))
+
+    # 前向账本（append-only，Gate G5 的唯一证据源）
+    from quantlab.forward_ledger import append_entry
+    if append_entry(month_key, list(top.index), note="缓冲20/40+行业中性（冻结口径）"):
+        print("前向账本: 已追加本月条目")
 
     print(f"清单: {RESEARCH_DIR / f'{month_key}.md'}（{len(top)} 只）")
     print(f"最大行业: {weights.index[0]} {weights.iloc[0]:.0%} | 平均相关 {correlation:.2f}")

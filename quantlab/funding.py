@@ -41,6 +41,7 @@ def attach_funding(candles: pd.DataFrame, funding: pd.DataFrame) -> pd.DataFrame
     return pd.merge_asof(
         candles.sort_values("date"), right,
         on="date", direction="backward",
+        tolerance=pd.Timedelta(days=3),  # 数据断档时不无限传播陈旧费率
     )
 
 
