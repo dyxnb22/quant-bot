@@ -43,10 +43,12 @@ make factors-cn  # A股四因子初检（同一流水线）
 ## 日常工作流
 
 1. 改动任何策略/配置后：`make check`（全绿才继续）。
-2. 策略研究：`make backtest` 快速对比 → `make review` 让 LLM 归因出假设 → `make wf` 出上线依据（只看 OOS 拼接数字）。
-3. 数据维护：每周 `make data && make data-check`。
-4. 运行观察：`make bot-status` / `make log`；巡检告警自动弹通知。
-5. 停机：`make bot-stop`（连同 launchd 服务一起卸载）。
+2. 币市研究：`make backtest` 快速对比 → `make review` 让 LLM 归因出假设 → `make wf` 出上线依据（只看 OOS 拼接数字）。
+3. 股市研究：新因子先在 `factor-registry.md` 预登记 → `make factors-us` / `factors-cn`（自动多重检验校正）。
+4. **月度节奏（CN 动量，PASS 因子）**：`make cn-data-refresh && make momentum-list` → 产出 Q5 研究清单 + 自动回填上期表现（`docs/research/cn-momentum/`）。
+5. 数据维护：每周 `make data && make data-check`。
+6. 运行观察：`make bot-status` / `make log`；巡检告警自动弹通知。
+7. 停机：`make bot-stop`（连同 launchd 服务一起卸载）。
 
 ## 目录结构
 

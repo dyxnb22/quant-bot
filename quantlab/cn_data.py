@@ -125,6 +125,34 @@ def download_cn_daily(tickers: list[str], years: int = 4) -> Path:
     return CN_DATA_DIR
 
 
+def fetch_industry() -> pd.DataFrame:
+    """全市场行业分类（申万），调用方负责 bs.login。"""
+    result = bs.query_stock_industry()
+    rows = []
+    while result.next():
+        rows.append(result.get_row_data())
+    frame = pd.DataFrame(rows, columns=["updateDate", "code", "code_name",
+                                        "industry", "industryClassification"])
+    return frame[["code", "code_name", "industry"]]
+
+
+def load_industry() -> pd.DataFrame:
+    """行业分类（带本地缓存）。"""
+    path = CN_DATA_DIR / "industry.feather"
+    if path.exists():
+        return pd.read_feather(path)
+    login = bs.login()
+    if login.error_code != "0":
+        raise RuntimeError(f"baostock 登录失败: {login.error_msg}")
+    try:
+        frame = fetch_industry()
+    finally:
+        bs.logout()
+    CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    frame.to_feather(path)
+    return frame
+
+
 def load_cn_daily() -> dict[str, pd.DataFrame]:
     out = {}
     for name in ("close", "volume"):
@@ -135,8 +163,14 @@ def load_cn_daily() -> dict[str, pd.DataFrame]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="下载沪深 300 日频数据（baostock）")
-    parser.add_argument("--years", type=int, default=4)
+    parser.add_argument("--years", type=int, default=10)
+    parser.add_argument("--refresh", action="store_true",
+                        help="删除现有行情后全量重下（月度更新用）")
     args = parser.parse_args()
+    if args.refresh:
+        for name in ("close.feather", "volume.feather"):
+            (CN_DATA_DIR / name).unlink(missing_ok=True)
+        print("已清除现有行情缓存（--refresh）", flush=True)
     login = bs.login()
     if login.error_code != "0":
         print(f"baostock 登录失败: {login.error_msg}")
