@@ -1,8 +1,8 @@
 # quant-bot
 
-个人加密货币量化交易工作台。**学习与研究优先，仓库内恒为 dry-run（模拟盘），不涉及真实资金。**
+个人**多市场量化研究平台**：quantlab 方法论层（验证/风控/统计/LLM 辅助）市场无关，币市（Freqtrade + OKX 现货 dry-run）是第一个执行器，美股/A 股截面研究进行中。**研究优先，仓库内恒为 dry-run（模拟盘），不涉及真实资金。**
 
-基于 [Freqtrade](https://www.freqtrade.io/) 2026.x / Python 3.14 / OKX 现货公共行情，自研 `quantlab/` 工具层。
+基于 Python 3.14 / [Freqtrade](https://www.freqtrade.io/) 2026.x / 自研 `quantlab/` 工具层。总路线图见 `docs/superpowers/specs/2026-08-12-multimarket-roadmap.md`。
 
 ## 项目定位
 
@@ -65,9 +65,9 @@ docs/results/             # 回测/过拟合/walk-forward 报告（必读）
 3. OKX API key 最小权限（禁提币）+ 独立子账户 + 硬性资金上限。
 4. 自行评估所在地监管合规风险。
 
-## 阶段二路线（远期）
+## 多市场路线（进行中）
 
-事件驱动自研框架（参考 Nautilus/vn.py 架构）：行情网关、策略引擎、风控中间件、执行器四层解耦；市场体制过滤与做空能力（walk-forward 报告指出当前策略只有 beta 没有 alpha）；组合级风险（相关性敞口）。届时另立设计文档。
+原"阶段二自研框架"路线已作废（体制过滤已证伪、自研引擎非瓶颈，见路线图"已作废项"）。现行战略：**美股日频截面因子研究（主攻）→ A 股研究搭车 → 港股缓议**，同步补齐统计严谨性工具箱（deflated Sharpe、多重检验校正、置换检验）。完整清单与进度：`docs/superpowers/specs/2026-08-12-multimarket-roadmap.md`。
 
 ## 免责声明
 
