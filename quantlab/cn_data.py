@@ -72,29 +72,35 @@ def cn_membership_mask(monthly_index, tickers) -> pd.DataFrame | None:
     return mask
 
 
-def _save(closes: dict, volumes: dict) -> None:
+# 日频字段：估值比率与换手率天然点时（无财报披露滞后问题）
+FIELDS = ("close", "volume", "turn", "pe", "pb", "ps")
+QUERY_FIELDS = "date,close,volume,turn,peTTM,pbMRQ,psTTM"
+
+
+def _save(frames: dict) -> None:
     CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame(closes).sort_index().reset_index().to_feather(CN_DATA_DIR / "close.feather")
-    pd.DataFrame(volumes).sort_index().reset_index().to_feather(CN_DATA_DIR / "volume.feather")
+    for field in FIELDS:
+        (pd.DataFrame(frames[field]).sort_index().reset_index()
+         .to_feather(CN_DATA_DIR / f"{field}.feather"))
 
 
 def download_cn_daily(tickers: list[str], years: int = 4) -> Path:
     start = (date.today() - timedelta(days=365 * years)).isoformat()
     end = date.today().isoformat()
-    closes, volumes = {}, {}
-    if (CN_DATA_DIR / "close.feather").exists():
+    frames = {field: {} for field in FIELDS}
+    if all((CN_DATA_DIR / f"{f}.feather").exists() for f in FIELDS):
         existing = load_cn_daily()
-        closes = {c: existing["close"][c] for c in existing["close"].columns}
-        volumes = {c: existing["volume"][c] for c in existing["volume"].columns}
-        print(f"  断点续传: 已有 {len(closes)} 个标的", flush=True)
-    pending = [t for t in tickers if t not in closes]
+        for field in FIELDS:
+            frames[field] = {c: existing[field][c] for c in existing[field].columns}
+        print(f"  断点续传: 已有 {len(frames['close'])} 个标的", flush=True)
+    pending = [t for t in tickers if t not in frames["close"]]
     failed = []
     for i, ticker in enumerate(pending, 1):
         rows = []
         for attempt in range(3):
             try:
                 result = bs.query_history_k_data_plus(
-                    ticker, "date,close,volume",
+                    ticker, QUERY_FIELDS,
                     start_date=start, end_date=end, frequency="d", adjustflag="2")  # 2=前复权
                 while result.next():
                     rows.append(result.get_row_data())
@@ -111,15 +117,15 @@ def download_cn_daily(tickers: list[str], years: int = 4) -> Path:
         if not rows:
             failed.append(ticker)
             continue
-        frame = pd.DataFrame(rows, columns=["date", "close", "volume"])
+        frame = pd.DataFrame(rows, columns=QUERY_FIELDS.split(","))
         frame["date"] = pd.to_datetime(frame["date"])
         frame = frame.set_index("date")
-        closes[ticker] = pd.to_numeric(frame["close"], errors="coerce")
-        volumes[ticker] = pd.to_numeric(frame["volume"], errors="coerce")
+        for field, column in zip(FIELDS, ("close", "volume", "turn", "peTTM", "pbMRQ", "psTTM")):
+            frames[field][ticker] = pd.to_numeric(frame[column], errors="coerce")
         if i % 50 == 0:
-            _save(closes, volumes)
+            _save(frames)
             print(f"  已下载 {i}/{len(pending)}（增量已落盘）", flush=True)
-    _save(closes, volumes)
+    _save(frames)
     if failed:
         print(f"  下载失败 {len(failed)} 个: {failed[:10]}", flush=True)
     return CN_DATA_DIR
@@ -155,9 +161,11 @@ def load_industry() -> pd.DataFrame:
 
 def load_cn_daily() -> dict[str, pd.DataFrame]:
     out = {}
-    for name in ("close", "volume"):
-        df = pd.read_feather(CN_DATA_DIR / f"{name}.feather")
-        out[name] = df.set_index(df.columns[0])
+    for name in FIELDS:
+        path = CN_DATA_DIR / f"{name}.feather"
+        if path.exists():
+            df = pd.read_feather(path)
+            out[name] = df.set_index(df.columns[0])
     return out
 
 
@@ -168,8 +176,8 @@ def main() -> int:
                         help="删除现有行情后全量重下（月度更新用）")
     args = parser.parse_args()
     if args.refresh:
-        for name in ("close.feather", "volume.feather"):
-            (CN_DATA_DIR / name).unlink(missing_ok=True)
+        for name in FIELDS:
+            (CN_DATA_DIR / f"{name}.feather").unlink(missing_ok=True)
         print("已清除现有行情缓存（--refresh）", flush=True)
     login = bs.login()
     if login.error_code != "0":
