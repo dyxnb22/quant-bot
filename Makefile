@@ -33,8 +33,15 @@ factors-us: ## 美股四因子初检（预登记协议）
 factors-cn: ## A股四因子初检（预登记协议）
 	.venv/bin/python -m quantlab.factor_eval --market cn
 
-cn-data-refresh: ## 全量刷新A股行情（月度更新用）
+cn-data-refresh: ## 全量刷新A股行情（月度更新用，先存档 manifest）
+	.venv/bin/python -m quantlab.manifest
 	.venv/bin/python -u -m quantlab.cn_data --years 10 --refresh
+
+manifest: ## 数据快照指纹（行数/哈希，研究输入可追溯）
+	.venv/bin/python -m quantlab.manifest
+
+results-index: ## 重新生成研究报告索引
+	.venv/bin/python -m quantlab.results_index
 
 momentum-list: ## 生成 CN 动量月度研究清单（PASS 因子落地）
 	.venv/bin/python -m quantlab.cn_momentum_list
