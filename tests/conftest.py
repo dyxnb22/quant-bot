@@ -1,19 +1,13 @@
-import importlib.util
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import numpy as np
 import pandas as pd
 import pytest
 
-STRATEGY_DIR = Path(__file__).parent.parent / "user_data" / "strategies"
-
-
-def load_strategy_class(name: str):
-    """从 user_data/strategies/ 按文件名加载策略类（文件名 = 类名）。"""
-    spec = importlib.util.spec_from_file_location(name, STRATEGY_DIR / f"{name}.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return getattr(module, name)
+from quantlab.strategy_loader import load_strategy_class  # noqa: E402, F401
 
 
 @pytest.fixture
