@@ -15,6 +15,9 @@ setup: ## 创建虚拟环境并安装依赖
 data: ## 下载/增量更新历史数据
 	./scripts/download_data.sh
 
+funding: ## 下载/更新资金费率历史（Binance 归档 + OKX 尾部）
+	.venv/bin/python -m quantlab.funding
+
 test: ## 运行策略单元测试
 	.venv/bin/python -m pytest tests/ -v
 
