@@ -27,6 +27,14 @@ from quantlab.strategy_loader import PROJECT_DIR  # noqa: E402
 
 CN_DATA_DIR = PROJECT_DIR / "user_data" / "data" / "cn"
 
+# 宇宙注册表：中证 500 复用同一管道（字段/点时化/事务与沪深 300 完全一致）
+UNIVERSES = {
+    "hs300": {"dir": CN_DATA_DIR, "label": "沪深 300",
+              "query": lambda **kw: bs.query_hs300_stocks(**kw), "lock": "cn_data"},
+    "zz500": {"dir": PROJECT_DIR / "user_data" / "data" / "cn500", "label": "中证 500",
+              "query": lambda **kw: bs.query_zz500_stocks(**kw), "lock": "cn500_data"},
+}
+
 
 def fetch_csi300_tickers() -> list[str]:
     result = bs.query_hs300_stocks()
@@ -36,13 +44,14 @@ def fetch_csi300_tickers() -> list[str]:
     return sorted(tickers)
 
 
-def fetch_hs300_membership(month_ends) -> pd.DataFrame:
-    """逐月末抓取沪深 300 点时成分快照（节假日自动回退至最近有效日）。"""
+def fetch_hs300_membership(month_ends, query=None) -> pd.DataFrame:
+    """逐月末抓取点时成分快照（节假日自动回退至最近有效日）。"""
+    query = query or UNIVERSES["hs300"]["query"]
     rows = []
     for month_end_date in month_ends:
         for back in range(8):
             query_date = (month_end_date - timedelta(days=back)).strftime("%Y-%m-%d")
-            result = bs.query_hs300_stocks(date=query_date)
+            result = query(date=query_date)
             snapshot = []
             while result.next():
                 snapshot.append(result.get_row_data()[1])
@@ -54,9 +63,10 @@ def fetch_hs300_membership(month_ends) -> pd.DataFrame:
     return pd.DataFrame(rows, columns=["date", "ticker"])
 
 
-def cn_membership_mask(monthly_index, tickers) -> pd.DataFrame | None:
+def cn_membership_mask(monthly_index, tickers, data_dir: Path = CN_DATA_DIR
+                       ) -> pd.DataFrame | None:
     """点时成员掩码（date × ticker）：每个月末用最近一期成分快照。"""
-    path = CN_DATA_DIR / "membership.feather"
+    path = data_dir / "membership.feather"
     if not path.exists():
         return None
     membership = pd.read_feather(path)
@@ -187,10 +197,10 @@ def load_index() -> pd.Series | None:
     return frame.set_index("date")["close"]
 
 
-def load_cn_daily() -> dict[str, pd.DataFrame]:
+def load_cn_daily(data_dir: Path = CN_DATA_DIR) -> dict[str, pd.DataFrame]:
     out = {}
     for name in FIELDS:
-        path = CN_DATA_DIR / f"{name}.feather"
+        path = data_dir / f"{name}.feather"
         if path.exists():
             df = pd.read_feather(path)
             out[name] = df.set_index(df.columns[0])
@@ -209,12 +219,15 @@ def atomic_write_feather(frame: pd.DataFrame, target: Path) -> None:
 def main() -> int:
     from quantlab.locking import file_lock
 
-    parser = argparse.ArgumentParser(description="下载沪深 300 日频数据（baostock）")
+    parser = argparse.ArgumentParser(description="下载 A 股日频数据（baostock）")
     parser.add_argument("--years", type=int, default=10)
+    parser.add_argument("--universe", choices=list(UNIVERSES), default="hs300")
     parser.add_argument("--refresh", action="store_true",
                         help="清空 staging 全量重下（否则断点续传 staging）")
     args = parser.parse_args()
-    staging = CN_DATA_DIR / "staging"
+    universe = UNIVERSES[args.universe]
+    data_dir = universe["dir"]
+    staging = data_dir / "staging"
     # P0 修复：live 目录只接受"校验通过后的原子切换"，下载一律写 staging。
     # 断点续传也发生在 staging；staging 为空且 live 完整时以 live 为种子（拷贝）。
     if args.refresh:
@@ -227,26 +240,28 @@ def main() -> int:
         print(f"baostock 登录失败: {login.error_msg}")
         return 1
     try:
-        with file_lock("cn_data"):
-            membership_file = CN_DATA_DIR / "membership.feather"
+        with file_lock(universe["lock"]):
+            membership_file = data_dir / "membership.feather"
             if membership_file.exists() and not args.refresh:
                 membership = pd.read_feather(membership_file)
                 print(f"点时成分使用缓存（{membership['date'].nunique()} 期快照）", flush=True)
             else:
                 month_ends = pd.date_range(end=date.today(), periods=args.years * 12, freq="ME")
-                print(f"抓取点时成分: {len(month_ends)} 个月末快照 ...", flush=True)
-                membership = fetch_hs300_membership(month_ends)
+                print(f"抓取 {universe['label']} 点时成分: {len(month_ends)} 个月末快照 ...",
+                      flush=True)
+                membership = fetch_hs300_membership(month_ends, query=universe["query"])
                 atomic_write_feather(membership, membership_file)
             tickers = sorted(membership["ticker"].unique())
-            print(f"股池: 点时成分并集 {len(tickers)} 个标的", flush=True)
-            fetch_index(args.years)
+            print(f"股池: {universe['label']} 点时成分并集 {len(tickers)} 个标的", flush=True)
+            if args.universe == "hs300":
+                fetch_index(args.years)
 
             staging.mkdir(parents=True, exist_ok=True)
             if (not (staging / "close.feather").exists()
-                    and all((CN_DATA_DIR / f"{f}.feather").exists() for f in FIELDS)):
+                    and all((data_dir / f"{f}.feather").exists() for f in FIELDS)):
                 import shutil
                 for name in FIELDS:
-                    shutil.copy(CN_DATA_DIR / f"{name}.feather", staging / f"{name}.feather")
+                    shutil.copy(data_dir / f"{name}.feather", staging / f"{name}.feather")
                 print("staging 以 live 数据为种子（增量补齐）", flush=True)
             download_cn_daily(tickers, years=args.years, out_dir=staging)
 
@@ -258,12 +273,12 @@ def main() -> int:
                 return 1
             import os
             for name in FIELDS:
-                os.replace(staging / f"{name}.feather", CN_DATA_DIR / f"{name}.feather")
+                os.replace(staging / f"{name}.feather", data_dir / f"{name}.feather")
             staging.rmdir()
             print(f"校验通过（覆盖率 {coverage:.0%}），已原子切换 live", flush=True)
     finally:
         bs.logout()
-    close = load_cn_daily()["close"]
+    close = load_cn_daily(data_dir)["close"]
     print(f"[OK] {close.shape[0]} 个交易日 × {close.shape[1]} 标的 | "
           f"{close.index[0]:%Y-%m-%d} ~ {close.index[-1]:%Y-%m-%d} | "
           f"覆盖率 {close.notna().mean().mean():.1%}")

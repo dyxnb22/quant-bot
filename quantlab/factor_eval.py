@@ -149,7 +149,7 @@ def render(market_label: str, universe_note: str, rows: list[dict],
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="因子检验（按预登记协议）")
-    parser.add_argument("--market", choices=["us", "cn"], default="us")
+    parser.add_argument("--market", choices=["us", "cn", "cn500"], default="us")
     parser.add_argument("--factors", nargs="*", default=None,
                         help="只检验指定因子（复检场景，须先在登记册预登记）")
     parser.add_argument("--report-to", default=None)
@@ -166,15 +166,18 @@ def main() -> int:
                 "退市成员价格不可得的残余幸存者偏差仍存在")
         target = PROJECT_DIR / "docs" / "results" / "09-us-factor-tests.md"
     else:
-        from quantlab.cn_data import cn_membership_mask, load_cn_daily
-        data = load_cn_daily()
+        from quantlab.cn_data import UNIVERSES, cn_membership_mask, load_cn_daily
+        universe = UNIVERSES["hs300" if args.market == "cn" else "zz500"]
+        data = load_cn_daily(universe["dir"])
         monthly_index = month_end(data["close"]).index
-        membership_mask = cn_membership_mask(monthly_index, data["close"].columns)
-        label = "A 股 沪深 300"
-        note = ("沪深 300 点时成分掩码已应用（baostock 月末快照）"
+        membership_mask = cn_membership_mask(monthly_index, data["close"].columns,
+                                             universe["dir"])
+        label = f"A 股 {universe['label']}"
+        note = (f"{universe['label']} 点时成分掩码已应用（baostock 月末快照）"
                 if membership_mask is not None
-                else "沪深 300 当前成分（幸存者偏差已声明，见登记册）")
-        target = PROJECT_DIR / "docs" / "results" / "10-cn-factor-tests.md"
+                else f"{universe['label']} 当前成分（幸存者偏差已声明，见登记册）")
+        target = PROJECT_DIR / "docs" / "results" / (
+            "10-cn-factor-tests.md" if args.market == "cn" else "16-cn500-factor-tests.md")
 
     if args.report_to:
         target = PROJECT_DIR / args.report_to
