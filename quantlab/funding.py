@@ -35,9 +35,11 @@ OKX_URL = ("https://www.okx.com/api/v5/public/funding-rate-history"
 def attach_funding(candles: pd.DataFrame, funding: pd.DataFrame) -> pd.DataFrame:
     """为 K 线附加最近一次已结算的资金费率（backward 合并，无未来函数）。"""
     columns = [c for c in ("date", "funding_rate", "funding_z") if c in funding.columns]
+    right = funding[columns].sort_values("date").copy()
+    # 统一时间戳精度（feather 为 ms、freqtrade/合成数据可能为 us），否则 merge_asof 报错
+    right["date"] = right["date"].astype(candles["date"].dtype)
     return pd.merge_asof(
-        candles.sort_values("date"),
-        funding[columns].sort_values("date"),
+        candles.sort_values("date"), right,
         on="date", direction="backward",
     )
 

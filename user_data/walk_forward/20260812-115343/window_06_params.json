@@ -1,0 +1,28 @@
+{
+  "strategy_name": "FundingRevertStrategy",
+  "params": {
+    "trailing": {
+      "trailing_stop": false,
+      "trailing_stop_positive": null,
+      "trailing_stop_positive_offset": 0.0,
+      "trailing_only_offset_is_reached": false
+    },
+    "max_open_trades": {
+      "max_open_trades": 3
+    },
+    "buy": {
+      "buy_funding_z": -31
+    },
+    "roi": {
+      "0": 0.143,
+      "447": 0.073,
+      "583": 0.027,
+      "1902": 0
+    },
+    "stoploss": {
+      "stoploss": -0.346
+    }
+  },
+  "ft_stratparam_v": 1,
+  "export_time": "2026-08-12 03:55:09.484580+00:00"
+}
