@@ -38,6 +38,7 @@ def signal_close(pair: str, order_time: pd.Timestamp) -> float | None:
     if not path.exists():
         return None
     candles = pd.read_feather(path).set_index("date")
+    candles.index = candles.index.tz_localize(None)  # 统一为裸 UTC，与 API 时间口径一致
     signal_candle = order_time.floor("1h") - timedelta(hours=1)
     if signal_candle not in candles.index:
         return None
