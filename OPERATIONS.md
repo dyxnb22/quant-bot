@@ -12,12 +12,23 @@
 | LLM 值班日报 | com.quantbot.dailybrief | 每天 09:00 生成，产物在 `user_data/logs/daily_brief/` |
 
 状态速查：`make bot-status`；巡检手动跑：`make health`。
+**所有脚本的启动时机与产物位置，见 `docs/research/run-registry.md`（运行台账）。**
 
-## 1. 周度（约 5 分钟）
+## 1. 每日（1 条命令，约 1 分钟）
 
 ```bash
-make data && make data-check   # 币市 K 线增量 + 三市场数据质量
-make recon                     # 成交对账（样本 <30 笔前只看管道是否正常）
+make daily   # 币市数据增量 + 模拟盘健康/账面 + 数据质量 + G5 进度
+```
+
+结果自动追加到 `docs/research/daily-log.md`（检查表 + 关键数字），
+并在 `docs/research/run-registry.md` 登记一行（何时启动、结果、详情位置）。
+退出码非零 = 有 FAIL 项，按日志详情列处理（故障速查见 §5）。
+离线/赶时间：`make daily` 换成 `.venv/bin/python -m quantlab.daily_check --no-data-update`。
+
+## 1.5 周度（约 5 分钟）
+
+```bash
+make recon   # 成交对账（样本 <30 笔前只看管道是否正常）
 ```
 
 顺手扫一眼最新日报（`user_data/logs/daily_brief/`）有无异常提示。
@@ -57,7 +68,7 @@ cn500_composite 2/5（G1 0.636 最高但 G3 IR 0.12——研究最强但中盘�
 ## 4. 任何代码/策略/配置变更时（不分周期）
 
 ```bash
-make check          # lint + 104 测试 + 风险审计 + 数据质量，全绿才继续
+make check          # lint + 108 测试 + 风险审计 + 数据质量，全绿才继续
 make ft-bias-check  # 涉及策略逻辑变更时：官方前视/递归偏差检查（输出自动归档）
 ```
 
@@ -99,4 +110,5 @@ make ft-bias-check  # 涉及策略逻辑变更时：官方前视/递归偏差检
   momentum 3/5（G1 0.555）· composite 3/5（G1 0.585，可交易年化 +9.15%）·
   cn500_composite 2/5（G1 0.636 最高但 G3 IR 0.12——研究最强、执行摩擦最大）
 - 对账样本 1 笔（SOL 入场 -1.3bps）；主候选切换标准已预登记（观察 ≥6 期）
-- 质量基线：104 测试 / lint 全绿 / CI 绿 / data-check 四数据域全绿（币市/us/cn/cn500）
+- 稳健性披露（19 号）：5/5 PASS 因子块自助 p <0.05；三候选参数邻域净夏普全正（冻结点在平原上）
+- 质量基线：108 测试 / lint 全绿 / CI 绿 / data-check 四数据域全绿（币市/us/cn/cn500）

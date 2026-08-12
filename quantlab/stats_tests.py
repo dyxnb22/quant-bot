@@ -52,6 +52,26 @@ def permutation_pvalue(series, n_permutations: int = 1000, seed: int = 0) -> flo
     return float((1 + (permuted_means >= observed).sum()) / (1 + n_permutations))
 
 
+def block_permutation_pvalue(series, block: int = 6,
+                             n_permutations: int = 2000, seed: int = 0) -> float:
+    """移动块符号翻转置换：以块为单位翻转符号，保留块内自相关结构。
+
+    朴素置换假设逐点可交换，月频序列相关下会低估 p；块自助（块长默认 6 个月）
+    是稳健性对照列（协议判定仍以 NW-p 为准，见 factor-registry 披露登记）。
+    """
+    values = np.asarray(series, dtype=float)
+    values = values[~np.isnan(values)]
+    if values.size == 0:
+        return 1.0
+    observed = values.mean()
+    rng = np.random.default_rng(seed)
+    n_blocks = int(np.ceil(values.size / block))
+    block_signs = rng.choice([-1.0, 1.0], size=(n_permutations, n_blocks))
+    signs = np.repeat(block_signs, block, axis=1)[:, :values.size]
+    permuted_means = (signs * values).mean(axis=1)
+    return float((1 + (permuted_means >= observed).sum()) / (1 + n_permutations))
+
+
 def newey_west_tstat(series, lags: int | None = None) -> float:
     """均值 = 0 的 Newey-West HAC t 统计（Bartlett 核）。
 

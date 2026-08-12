@@ -2,7 +2,7 @@
 
 个人**多市场量化研究平台**：quantlab 方法论层（验证/风控/统计/LLM 辅助）市场无关，币市（Freqtrade + OKX 现货 dry-run）是第一个执行器，美股/A 股截面研究进行中。**研究优先，仓库内恒为 dry-run（模拟盘），不涉及真实资金。**
 
-基于 Python 3.14 / [Freqtrade](https://www.freqtrade.io/) 2026.x / 自研 `quantlab/` 工具层。总路线图见 `docs/superpowers/specs/2026-08-12-multimarket-roadmap.md`。**日常操作以 [`OPERATIONS.md`](OPERATIONS.md) 为唯一入口**（周/月/季节奏、研究纪律、故障速查、开发触发表）。
+基于 Python 3.14 / [Freqtrade](https://www.freqtrade.io/) 2026.x / 自研 `quantlab/` 工具层。总路线图见 `docs/superpowers/specs/2026-08-12-multimarket-roadmap.md`。**日常操作以 [`OPERATIONS.md`](OPERATIONS.md) 为唯一入口**（日/周/月/季节奏、研究纪律、故障速查、开发触发表）；每天一条 `make daily`，结果落 `docs/research/daily-log.md`，脚本与产物地图见 `docs/research/run-registry.md`。
 
 ## 项目定位
 

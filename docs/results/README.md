@@ -22,4 +22,5 @@
 | [16-cn500-factor-tests](16-cn500-factor-tests.md) | 因子初检报告：A 股 中证 500 |
 | [17-us-momentum-recheck](17-us-momentum-recheck.md) | 因子初检报告：美股 S&P 500 |
 | [18-crypto-cs-momentum](18-crypto-cs-momentum.md) | 因子初检报告：加密截面（Binance USDT） |
+| [19-robustness-disclosure](19-robustness-disclosure.md) | 稳健性披露：块自助对照 + 参数平原（不择优） |
 | [factor-registry](factor-registry.md) | 因子登记册（living doc） |

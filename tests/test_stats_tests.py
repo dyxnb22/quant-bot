@@ -47,6 +47,31 @@ def test_permutation_pvalue():
     assert 0.1 < permutation_pvalue(noise, seed=1) < 0.9
 
 
+def test_block_permutation_pvalue():
+    from quantlab.stats_tests import block_permutation_pvalue
+    rng = np.random.default_rng(3)
+    strong = rng.normal(0.5, 0.1, 120)
+    noise = rng.normal(0.0, 1.0, 120)
+    assert block_permutation_pvalue(strong, seed=1) < 0.01
+    assert 0.05 < block_permutation_pvalue(noise, seed=1) < 0.95
+    assert block_permutation_pvalue([np.nan, np.nan]) == 1.0
+
+
+def test_block_permutation_conservative_under_autocorrelation():
+    """正自相关 + 小幅正漂移：块自助 p 应不小于朴素置换 p（不放大显著性）。"""
+    rng = np.random.default_rng(4)
+    n = 120
+    e = rng.normal(0, 1, n)
+    x = np.zeros(n)
+    for i in range(1, n):
+        x[i] = 0.6 * x[i - 1] + e[i]
+    x = x + 0.12
+    naive = permutation_pvalue(x, n_permutations=2000, seed=5)
+    from quantlab.stats_tests import block_permutation_pvalue
+    block = block_permutation_pvalue(x, block=6, n_permutations=2000, seed=5)
+    assert block >= naive * 0.9, f"块自助不应比朴素置换更激进：block={block:.4f} naive={naive:.4f}"
+
+
 def test_newey_west_pvalue_direction():
     from quantlab.stats_tests import newey_west_pvalue
     rng = np.random.default_rng(2)
