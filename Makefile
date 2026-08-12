@@ -38,9 +38,17 @@ factors-cn-batch2: ## A股批次2检验：EP/BP/SP/低换手（需深夜数据�
 		--factors ep bp sp low_turnover \
 		--report-to docs/results/13-cn-value-factors.md
 
-cn-data-refresh: ## 全量刷新A股行情（月度更新用，先存档 manifest）
+cn-data-refresh: ## 全量刷新沪深300行情（月度更新用，先存档 manifest）
 	.venv/bin/python -m quantlab.manifest
 	.venv/bin/python -u -m quantlab.cn_data --years 10 --refresh
+
+cn500-data-refresh: ## 全量刷新中证500行情（月度更新用）
+	.venv/bin/python -u -m quantlab.cn_data --universe zz500 --years 10 --refresh
+
+gates: ## 三候选 Deployment Gate 全跑（季度复查）
+	-.venv/bin/python -m quantlab.deployment_gate --rule momentum
+	-.venv/bin/python -m quantlab.deployment_gate --rule composite
+	-.venv/bin/python -m quantlab.deployment_gate --rule cn500_composite
 
 manifest: ## 数据快照指纹（行数/哈希，研究输入可追溯）
 	.venv/bin/python -m quantlab.manifest

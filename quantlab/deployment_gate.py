@@ -14,6 +14,16 @@ from quantlab.strategy_loader import PROJECT_DIR
 REPORT = PROJECT_DIR / "docs" / "results" / "14-deployment-gate.md"
 FREEZE_DATE = pd.Timestamp("2026-08-12")
 
+# 候选池（登记册预登记的三席）：各自宇宙/账本规则/家族分母/报告文件
+RULES = {
+    "momentum": {"universe": "hs300", "family": "cn", "factor": "momentum",
+                 "label": "CN 动量冻结口径（缓冲 20/40 + 行业中性）"},
+    "composite": {"universe": "hs300", "family": "cn", "factor": "composite",
+                  "label": "沪深300 复合观察候选（标准规则）"},
+    "cn500_composite": {"universe": "zz500", "family": "cn500", "factor": "composite",
+                        "label": "中证500 复合观察候选（标准规则）"},
+}
+
 
 def evaluate_gate(metrics: dict) -> list[dict]:
     """输入指标 → G1-G5 逐项判定（纯函数）。"""
@@ -42,12 +52,12 @@ def information_ratio(portfolio_monthly: pd.Series, benchmark_monthly: pd.Series
     return {"ann_excess": ann_excess, "information_ratio": ir}
 
 
-def render(rows: list[dict], context: str) -> str:
+def render(rows: list[dict], context: str, label: str) -> str:
     passed = sum(r["ok"] for r in rows)
     lines = [
         "# Deployment Gate 判定（G1-G5）",
         "",
-        f"- 日期: {datetime.now():%F %T} | 对象: CN 动量冻结口径（缓冲 20/40 + 行业中性）",
+        f"- 日期: {datetime.now():%F %T} | 对象: {label}",
         f"- 上下文: {context}",
         "",
         "| 门槛 | 实际值 | 判定 |",
@@ -76,21 +86,36 @@ def _benchmark_on_fill_intervals(index_series: pd.Series,
 
 
 def main() -> int:
+    import argparse
+
     from scipy.stats import kurtosis, skew
 
-    from quantlab.cn_data import cn_membership_mask, load_cn_daily, load_index, load_industry
-    from quantlab.factors import momentum_12_1, month_end
+    from quantlab.cn_data import (UNIVERSES, cn_membership_mask, load_cn_daily,
+                                  load_index, load_industry)
+    from quantlab.factors import composite_mom_lto, momentum_12_1, month_end
     from quantlab.forward_ledger import forward_months as ledger_forward_months
     from quantlab.locking import file_lock
     from quantlab.registry import family_trials
     from quantlab.stats_tests import deflated_sharpe
     from quantlab.tradable_sim import simulate_tradable
 
-    with file_lock("cn_data"):
-        data = load_cn_daily()
+    parser = argparse.ArgumentParser(description="部署门槛 G1-G5 判定")
+    parser.add_argument("--rule", choices=list(RULES), default="momentum")
+    args = parser.parse_args()
+    rule = RULES[args.rule]
+    universe = UNIVERSES[rule["universe"]]
+    family = rule["family"]
+    report_path = (REPORT if args.rule == "momentum"
+                   else REPORT.with_name(f"14-deployment-gate-{args.rule}.md"))
+
+    with file_lock(universe["lock"]):
+        data = load_cn_daily(universe["dir"])
         close_monthly = month_end(data["close"])
-        factor = momentum_12_1(close_monthly)
-        mask = cn_membership_mask(factor.index, data["close"].columns)
+        if rule["factor"] == "momentum":
+            factor = momentum_12_1(close_monthly)
+        else:
+            factor = composite_mom_lto(data["close"], data["turn"])
+        mask = cn_membership_mask(factor.index, data["close"].columns, universe["dir"])
         if mask is not None:
             factor = factor.where(mask.reindex(factor.index).fillna(False))
         industry = load_industry()
@@ -103,12 +128,13 @@ def main() -> int:
                                    industry_map=industry_map,
                                    commission_bps=5.0, stamp_bps=10.0)
 
-        index_series = load_index()
+        index_series = load_index(universe["dir"])
         portfolio_monthly = base["monthly"]["net"]
         if index_series is not None:
             benchmark_aligned = _benchmark_on_fill_intervals(
                 index_series, base["monthly"], data["close"].index.max())
-            benchmark_name = "沪深300价格指数（不含股息；按相同成交日区间）"
+            benchmark_name = (f"{universe['label']}价格指数 {universe['index']}"
+                              f"（不含股息；按相同成交日区间）")
         else:
             benchmark_aligned = pd.Series(float("nan"), index=portfolio_monthly.index)
             benchmark_name = "缺失（指数数据未落地，G2/G3 无法判定）"
@@ -117,26 +143,26 @@ def main() -> int:
     net = portfolio_monthly.dropna()
     metrics = {
         "dsr": deflated_sharpe(
-            base["net_sharpe"], max(base["months"], 2), family_trials("cn"),
+            base["net_sharpe"], max(base["months"], 2), family_trials(family),
             skew=float(skew(net)) if len(net) > 2 else 0.0,
             kurt=float(kurtosis(net, fisher=False)) if len(net) > 3 else 3.0),
         "ann_excess": rel["ann_excess"],
         "information_ratio": rel["information_ratio"],
         "stress_net_sharpe": stress["net_sharpe"],
         "forward_months": ledger_forward_months(
-            f"{FREEZE_DATE:%Y-%m-%d}T00:00:00+00:00", rule="momentum"),
+            f"{FREEZE_DATE:%Y-%m-%d}T00:00:00+00:00", rule=args.rule),
     }
     context = (f"可交易口径 {base['months']} 个月（年化 {base['annual_return']:+.2%}，"
                f"费用 {base['total_fees']:.0f} 元，容量峰值 {base['capacity_peak']:.1%}，"
                f"禁买 {base['blocked_buys']}/禁卖 {base['blocked_sells']}/清算 {base['writeoffs']}）；"
                f"压力口径 = 同引擎佣金印花×2；基准 = {benchmark_name}；"
-               f"DSR 用真实偏度/峰度与登记册 n_trials={family_trials('cn')}；"
+               f"DSR 用真实偏度/峰度与登记册 n_trials={family_trials(family)}；"
                f"G5 证据源 = 前向账本（append-only）")
     from quantlab.provenance import stamp
     rows = evaluate_gate(metrics)
-    REPORT.write_text(render(rows, context) + f"\n\n---\n溯源: {stamp()}\n")
-    print(render(rows, context))
-    print(f"\n报告: {REPORT}")
+    report_path.write_text(render(rows, context, rule["label"]) + f"\n\n---\n溯源: {stamp()}\n")
+    print(render(rows, context, rule["label"]))
+    print(f"\n报告: {report_path}")
     return 0 if all(r["ok"] for r in rows) else 1  # 未通过 → 非零退出（P1-04）
 
 

@@ -22,19 +22,21 @@ make recon                     # 成交对账（样本 <30 笔前只看管道是
 
 顺手扫一眼最新日报（`user_data/logs/daily_brief/`）有无异常提示。
 
-## 2. 月度（月初第一个交易日后，约 15 分钟）——最重要的节奏
+## 2. 月度（月初第一个交易日后，约 20 分钟）——最重要的节奏
 
 ```bash
-make cn-data-refresh    # A 股全量刷新（staging→校验→原子切换；断了重跑即续传）
-make data-check         # 确认 CN 覆盖率 ≥90% 且六字段一致
-make momentum-list      # 双候选清单 + 前向账本各 +1 + 上月表现回填
-make us-data            # 美股月度刷新（40 天新鲜度阈值）
+make cn-data-refresh      # 沪深300 全量刷新（staging→校验→原子切换；断了重跑即续传）
+make cn500-data-refresh   # 中证500 全量刷新（同机制；与上一条错开跑，避免 baostock 限流）
+make data-check           # 确认 cn/cn500 覆盖率 ≥90% 且六字段一致
+make momentum-list        # 三候选清单 + 前向账本各 +1 + 上月表现回填
+make us-data              # 美股月度刷新（40 天新鲜度阈值）
 git add -A && git commit -m "chore: YYYY-MM 月度清单与账本" && git push
 ```
 
 产出检查：
-- `docs/research/cn-momentum/<月份>.md`（冻结部署候选）与 `cn-composite/<月份>.md`（观察期候选）
-- `forward-ledger.jsonl` 两条新条目（rule=momentum / composite）
+- 三份清单：`cn-momentum/<月>.md`（冻结部署候选）、`cn-composite/<月>.md`、
+  `cn500-composite/<月>.md`（两个观察期候选）
+- `forward-ledger.jsonl` 三条新条目（rule = momentum / composite / cn500_composite）
 - `tracking.md` 回填的上月实现收益 vs 基准
 
 **这一步是 G5 时钟的唯一走针方式，漏跑一个月 = 前向证据晚一个月。**
@@ -42,12 +44,15 @@ git add -A && git commit -m "chore: YYYY-MM 月度清单与账本" && git push
 ## 3. 季度（约 30 分钟）
 
 ```bash
-.venv/bin/python -m quantlab.deployment_gate   # 重跑 G1-G5（未过退出码非零属正常）
-make review                                     # LLM 复盘（如模拟盘有新平仓）
+make gates       # 三候选 Deployment Gate 全跑（未过退出码非零属正常）
+make review      # LLM 复盘（如模拟盘有新平仓）
 ```
 
-复盘三个问题：账本上两候选的已实现超额 vs 回测预期偏差多大？对账样本滑点分布有无恶化？
-G1（DSR）/G5（前向 N/12）走到哪了？结论追加到 `docs/results/14-deployment-gate.md` 不覆盖历史。
+复盘三个问题：账本上三候选的已实现超额 vs 回测预期偏差多大？对账样本滑点分布有无恶化？
+各候选 G1（DSR）/G5（前向 N/12）走到哪了？观察期候选满 6 期后按登记册预登记标准评估主候选切换。
+
+三候选基线存照（2026-08-12）：momentum 3/5（G1 0.555）；composite 3/5（G1 0.585，可交易年化 +9.15%）；
+cn500_composite 2/5（G1 0.636 最高但 G3 IR 0.12——研究最强但中盘执行摩擦大，长仓可交易口径最弱）。
 
 ## 4. 任何代码/策略/配置变更时（不分周期）
 

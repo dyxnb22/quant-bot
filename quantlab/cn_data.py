@@ -29,9 +29,10 @@ CN_DATA_DIR = PROJECT_DIR / "user_data" / "data" / "cn"
 
 # 宇宙注册表：中证 500 复用同一管道（字段/点时化/事务与沪深 300 完全一致）
 UNIVERSES = {
-    "hs300": {"dir": CN_DATA_DIR, "label": "沪深 300",
+    "hs300": {"dir": CN_DATA_DIR, "label": "沪深 300", "index": "sh.000300",
               "query": lambda **kw: bs.query_hs300_stocks(**kw), "lock": "cn_data"},
     "zz500": {"dir": PROJECT_DIR / "user_data" / "data" / "cn500", "label": "中证 500",
+              "index": "sh.000905",
               "query": lambda **kw: bs.query_zz500_stocks(**kw), "lock": "cn500_data"},
 }
 
@@ -173,8 +174,9 @@ def load_industry() -> pd.DataFrame:
     return frame
 
 
-def fetch_index(years: int, code: str = "sh.000300") -> None:
-    """沪深 300 价格指数日线（基准列；注明不含股息的局限）。调用方负责 login。"""
+def fetch_index(years: int, code: str = "sh.000300",
+                out_dir: Path = CN_DATA_DIR) -> None:
+    """价格指数日线（基准列；注明不含股息的局限）。调用方负责 login。"""
     start = (date.today() - timedelta(days=365 * years)).isoformat()
     result = bs.query_history_k_data_plus(
         code, "date,close", start_date=start, end_date=date.today().isoformat(),
@@ -185,12 +187,12 @@ def fetch_index(years: int, code: str = "sh.000300") -> None:
     frame = pd.DataFrame(rows, columns=["date", "close"])
     frame["date"] = pd.to_datetime(frame["date"])
     frame["close"] = pd.to_numeric(frame["close"], errors="coerce")
-    atomic_write_feather(frame, CN_DATA_DIR / "index.feather")
+    atomic_write_feather(frame, out_dir / "index.feather")
     print(f"指数基准: {code} {len(frame)} 个交易日已落盘", flush=True)
 
 
-def load_index() -> pd.Series | None:
-    path = CN_DATA_DIR / "index.feather"
+def load_index(data_dir: Path = CN_DATA_DIR) -> pd.Series | None:
+    path = data_dir / "index.feather"
     if not path.exists():
         return None
     frame = pd.read_feather(path)
@@ -253,8 +255,7 @@ def main() -> int:
                 atomic_write_feather(membership, membership_file)
             tickers = sorted(membership["ticker"].unique())
             print(f"股池: {universe['label']} 点时成分并集 {len(tickers)} 个标的", flush=True)
-            if args.universe == "hs300":
-                fetch_index(args.years)
+            fetch_index(args.years, code=universe["index"], out_dir=data_dir)
 
             staging.mkdir(parents=True, exist_ok=True)
             if (not (staging / "close.feather").exists()

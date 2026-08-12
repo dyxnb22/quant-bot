@@ -66,24 +66,38 @@ def realized_performance(prev_tickers, universe, close_monthly: pd.DataFrame,
 
 
 COMPOSITE_DIR = PROJECT_DIR / "docs" / "research" / "cn-composite"
+CN500_COMPOSITE_DIR = PROJECT_DIR / "docs" / "research" / "cn500-composite"
 
 
-def _generate_composite(data, universe_index, month_key, industry_map,
-                        name_map, mask, latest) -> None:
-    """复合候选清单（观察期）：同一标准部署规则，独立状态与账本规则。"""
+def _generate_composite(rule: str, universe: str, research_dir, label: str,
+                        industry_map: dict, name_map: dict,
+                        min_universe: int) -> None:
+    """复合候选清单（观察期）：同一标准部署规则，独立宇宙/状态/账本规则。"""
+    from quantlab.cn_data import UNIVERSES, cn_membership_mask, load_cn_daily
     from quantlab.factors import composite_mom_lto
     from quantlab.forward_ledger import append_entry
 
-    factor = composite_mom_lto(data["close"], data["turn"])
-    if latest not in factor.index:
-        print("复合候选: 当期无复合因子截面，跳过")
+    data_dir = UNIVERSES[universe]["dir"]
+    data = load_cn_daily(data_dir)
+    if "close" not in data or "turn" not in data:
+        print(f"{rule}: 数据缺失，跳过")
         return
+    factor = composite_mom_lto(data["close"], data["turn"])
+    if factor.empty:
+        print(f"{rule}: 无因子截面，跳过")
+        return
+    latest = factor.index[-1]
+    month_key = f"{latest:%Y-%m}"
+    mask = cn_membership_mask(factor.index, data["close"].columns, data_dir)
     row = factor.loc[latest]
     if mask is not None:
         row = row[mask.loc[latest].reindex(row.index).fillna(False)]
-    row = row.reindex(universe_index).dropna()
+    row = row.dropna()
+    if row.count() < min_universe:
+        print(f"{rule}: 有效股池 {row.count()} < {min_universe}，疑似数据不完整，拒绝生成")
+        return
 
-    state_file = COMPOSITE_DIR / "state.json"
+    state_file = research_dir / "state.json"
     state = json.loads(state_file.read_text()) if state_file.exists() else {}
     prior = [m for m in sorted(state) if m < month_key]
     previous = set(state[prior[-1]]) if prior else set()
@@ -92,12 +106,12 @@ def _generate_composite(data, universe_index, month_key, industry_map,
     top = row.reindex(list(selected)).dropna().sort_values(ascending=False)
     weights = industry_weights(top.index, industry_map)
 
-    COMPOSITE_DIR.mkdir(parents=True, exist_ok=True)
+    research_dir.mkdir(parents=True, exist_ok=True)
     lines = [
-        f"# CN 复合候选清单 {month_key}（观察期）",
+        f"# {label} 复合候选清单 {month_key}（观察期）",
         "",
-        (f"- 生成: {datetime.now():%F %T} | 因子: composite_mom_lto（15 号 PASS 初检）"
-         f" | 规则: 缓冲20/40+行业中性（标准规则，非为复合优化）"),
+        (f"- 生成: {datetime.now():%F %T} | 因子: composite_mom_lto"
+         f" | 规则: 缓冲20/40+行业中性（标准规则，非为复合优化）| 账本规则: {rule}"),
         (f"- 清单: {len(top)} 只（保留老持仓 {len(selected & previous)} 只）"
          f" | 最大行业 {weights.iloc[0]:.0%}（{weights.index[0]}）"),
         "",
@@ -109,11 +123,12 @@ def _generate_composite(data, universe_index, month_key, industry_map,
     for rank, (ticker, value) in enumerate(top.items(), 1):
         lines.append(f"| {rank} | {ticker} | {name_map.get(ticker, '')} "
                      f"| {value:.3f} | {industry_map.get(ticker) or '未分类'} |")
-    (COMPOSITE_DIR / f"{month_key}.md").write_text("\n".join(lines) + "\n")
+    (research_dir / f"{month_key}.md").write_text("\n".join(lines) + "\n")
     state[month_key] = list(top.index)
     state_file.write_text(json.dumps(state, ensure_ascii=False, indent=1))
-    if append_entry(month_key, list(top.index), note="标准规则（观察期候选）", rule="composite"):
-        print(f"前向账本: 已追加本月条目（composite，{len(top)} 只）")
+    if append_entry(month_key, list(top.index), note=f"标准规则（观察期候选，{label}）",
+                    rule=rule):
+        print(f"前向账本: 已追加本月条目（{rule}，{len(top)} 只）")
 
 
 def main() -> int:
@@ -230,8 +245,11 @@ def _run() -> int:
     if append_entry(month_key, list(top.index), note="缓冲20/40+行业中性（冻结口径）"):
         print("前向账本: 已追加本月条目（momentum）")
 
-    # 第二候选：复合因子（15 号 PASS，观察期候选——自己的前向记录自己攒）
-    _generate_composite(data, row.index, month_key, industry_map, name_map, mask, latest)
+    # 观察期候选：沪深300 复合（15 号 PASS）与中证500 复合（16 号跨宇宙确认，DSR 0.92）
+    _generate_composite("composite", "hs300", COMPOSITE_DIR, "沪深300",
+                        industry_map, name_map, min_universe=250)
+    _generate_composite("cn500_composite", "zz500", CN500_COMPOSITE_DIR, "中证500",
+                        industry_map, name_map, min_universe=400)
 
     print(f"清单: {RESEARCH_DIR / f'{month_key}.md'}（{len(top)} 只）")
     print(f"最大行业: {weights.index[0]} {weights.iloc[0]:.0%} | 平均相关 {correlation:.2f}")

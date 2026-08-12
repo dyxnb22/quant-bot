@@ -82,34 +82,35 @@ def check_equity_data() -> bool:
     ok = True
     now = datetime.now()
 
-    cn_dir = PROJECT_DIR / "user_data" / "data" / "cn"
-    membership = cn_dir / "membership.feather"
-    close_file = cn_dir / "close.feather"
-    if membership.exists() and close_file.exists():
-        expected = pd.read_feather(membership)["ticker"].nunique()
-        close = pd.read_feather(close_file)
-        coverage = (close.shape[1] - 1) / expected
-        age_days = (now - pd.Timestamp(close.iloc[-1, 0])).days
-        good = coverage >= CN_MIN_COVERAGE and age_days <= EQUITY_STALENESS_DAYS
-        print(f"[{'OK ' if good else 'FAIL'}] cn/close: {close.shape[1]-1}/{expected} "
-              f"标的（覆盖 {coverage:.0%}，要求 ≥{CN_MIN_COVERAGE:.0%}），"
-              f"最后交易日 {age_days} 天前")
-        ok = ok and good
-        # 字段级交叉一致性：六字段必须同列集同行数（防部分字段落后的混合状态）
-        base_cols, base_rows = set(close.columns), len(close)
-        for field in ("volume", "turn", "pe", "pb", "ps"):
-            path = cn_dir / f"{field}.feather"
-            if not path.exists():
-                print(f"[FAIL] cn/{field}: 缺失（六字段必须齐备）")
-                ok = False
-                continue
-            frame = pd.read_feather(path)
-            if set(frame.columns) != base_cols or len(frame) != base_rows:
-                print(f"[FAIL] cn/{field}: 列集或行数与 close 不一致（混合版本嫌疑）")
-                ok = False
-    elif close_file.exists() or membership.exists():
-        print("[FAIL] cn: 数据文件不完整（membership 与 close 须同时存在）")
-        ok = False
+    for name in ("cn", "cn500"):
+        cn_dir = PROJECT_DIR / "user_data" / "data" / name
+        membership = cn_dir / "membership.feather"
+        close_file = cn_dir / "close.feather"
+        if membership.exists() and close_file.exists():
+            expected = pd.read_feather(membership)["ticker"].nunique()
+            close = pd.read_feather(close_file)
+            coverage = (close.shape[1] - 1) / expected
+            age_days = (now - pd.Timestamp(close.iloc[-1, 0])).days
+            good = coverage >= CN_MIN_COVERAGE and age_days <= EQUITY_STALENESS_DAYS
+            print(f"[{'OK ' if good else 'FAIL'}] {name}/close: {close.shape[1]-1}/{expected} "
+                  f"标的（覆盖 {coverage:.0%}，要求 ≥{CN_MIN_COVERAGE:.0%}），"
+                  f"最后交易日 {age_days} 天前")
+            ok = ok and good
+            # 字段级交叉一致性：六字段必须同列集同行数（防部分字段落后的混合状态）
+            base_cols, base_rows = set(close.columns), len(close)
+            for field in ("volume", "turn", "pe", "pb", "ps"):
+                path = cn_dir / f"{field}.feather"
+                if not path.exists():
+                    print(f"[FAIL] {name}/{field}: 缺失（六字段必须齐备）")
+                    ok = False
+                    continue
+                frame = pd.read_feather(path)
+                if set(frame.columns) != base_cols or len(frame) != base_rows:
+                    print(f"[FAIL] {name}/{field}: 列集或行数与 close 不一致（混合版本嫌疑）")
+                    ok = False
+        elif close_file.exists() or membership.exists():
+            print(f"[FAIL] {name}: 数据文件不完整（membership 与 close 须同时存在）")
+            ok = False
 
     us_close = PROJECT_DIR / "user_data" / "data" / "us" / "close.feather"
     if us_close.exists():
