@@ -35,6 +35,43 @@ def fetch_csi300_tickers() -> list[str]:
     return sorted(tickers)
 
 
+def fetch_hs300_membership(month_ends) -> pd.DataFrame:
+    """逐月末抓取沪深 300 点时成分快照（节假日自动回退至最近有效日）。"""
+    rows = []
+    for month_end_date in month_ends:
+        for back in range(8):
+            query_date = (month_end_date - timedelta(days=back)).strftime("%Y-%m-%d")
+            result = bs.query_hs300_stocks(date=query_date)
+            snapshot = []
+            while result.next():
+                snapshot.append(result.get_row_data()[1])
+            if snapshot:
+                rows.extend((month_end_date, ticker) for ticker in snapshot)
+                break
+        else:
+            print(f"  成分快照缺失: {month_end_date:%Y-%m-%d}", flush=True)
+    return pd.DataFrame(rows, columns=["date", "ticker"])
+
+
+def cn_membership_mask(monthly_index, tickers) -> pd.DataFrame | None:
+    """点时成员掩码（date × ticker）：每个月末用最近一期成分快照。"""
+    path = CN_DATA_DIR / "membership.feather"
+    if not path.exists():
+        return None
+    membership = pd.read_feather(path)
+    membership["date"] = pd.to_datetime(membership["date"])
+    snapshots = {d: set(g["ticker"]) for d, g in membership.groupby("date")}
+    snapshot_dates = sorted(snapshots)
+    mask = pd.DataFrame(False, index=monthly_index, columns=list(tickers))
+    for month_end_date in monthly_index:
+        usable = [d for d in snapshot_dates if d <= month_end_date]
+        if not usable:
+            continue
+        members = snapshots[usable[-1]]
+        mask.loc[month_end_date, [t for t in mask.columns if t in members]] = True
+    return mask
+
+
 def _save(closes: dict, volumes: dict) -> None:
     CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(closes).sort_index().reset_index().to_feather(CN_DATA_DIR / "close.feather")
@@ -105,8 +142,14 @@ def main() -> int:
         print(f"baostock 登录失败: {login.error_msg}")
         return 1
     try:
-        tickers = fetch_csi300_tickers()
-        print(f"股池: {len(tickers)} 个标的（沪深 300 当前成分，幸存者偏差已知）")
+        month_ends = pd.date_range(end=date.today(), periods=args.years * 12, freq="ME")
+        print(f"抓取点时成分: {len(month_ends)} 个月末快照 ...", flush=True)
+        membership = fetch_hs300_membership(month_ends)
+        CN_DATA_DIR.mkdir(parents=True, exist_ok=True)
+        membership.to_feather(CN_DATA_DIR / "membership.feather")
+        tickers = sorted(membership["ticker"].unique())
+        print(f"股池: 点时成分并集 {len(tickers)} 个标的"
+              f"（{len(month_ends)} 期快照，消除'未来入选'泄漏）", flush=True)
         download_cn_daily(tickers, years=args.years)
     finally:
         bs.logout()

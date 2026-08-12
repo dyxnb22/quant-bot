@@ -71,11 +71,14 @@ def verdict(metrics: dict, bh_significant: bool) -> str:
     return "REJECTED（初检）"
 
 
-def run_family(data: dict, membership_mask: pd.DataFrame | None = None
-               ) -> tuple[list[dict], list[str]]:
+def run_family(data: dict, membership_mask: pd.DataFrame | None = None,
+               only_factors: list[str] | None = None,
+               n_trials_override: int | None = None) -> tuple[list[dict], list[str]]:
     forward = forward_1m(month_end(data["close"]))
+    builders = {k: v for k, v in FACTOR_BUILDERS.items()
+                if only_factors is None or k in only_factors}
     rows = []
-    for name, builder in FACTOR_BUILDERS.items():
+    for name, builder in builders.items():
         factor = builder(data)
         if membership_mask is not None:
             factor = factor.where(membership_mask.reindex(factor.index).fillna(False))
@@ -83,10 +86,11 @@ def run_family(data: dict, membership_mask: pd.DataFrame | None = None
         metrics["factor"] = name
         rows.append(metrics)
     significant = benjamini_hochberg([r["perm_p"] for r in rows], alpha=0.05)
-    n_trials = len(rows)
+    n_trials = n_trials_override or len(rows)
     verdicts = []
     for row, sig in zip(rows, significant):
         row["bh_significant"] = bool(sig)
+        row["n_trials"] = n_trials
         row["dsr"] = deflated_sharpe(row["net_sharpe"], max(row["n_obs_net"], 2), n_trials)
         verdicts.append(verdict(row, sig))
     return rows, verdicts
@@ -99,7 +103,7 @@ def render(market_label: str, universe_note: str, rows: list[dict],
         "",
         f"- 日期: {datetime.now():%F %T} | 协议与预登记: `docs/results/factor-registry.md`",
         f"- 股池: {universe_note}",
-        f"- 家族试验数 n_trials = {len(rows)}（BH 与 DSR 均按此校正）",
+        f"- 家族试验数 n_trials = {rows[0]['n_trials']}（DSR 按此扣减；BH 在本批 {len(rows)} 个假设内）",
         "",
         "| 因子 | 月数 | IC 均值 | IC t | 置换 p | BH 显著 | 分段一致率 | 多空净(月) | 净夏普 | DSR | 单调性 | 判定 |",
         "|---|---|---|---|---|---|---|---|---|---|---|---|",
@@ -121,8 +125,13 @@ def render(market_label: str, universe_note: str, rows: list[dict],
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="因子初检（按预登记协议）")
+    parser = argparse.ArgumentParser(description="因子检验（按预登记协议）")
     parser.add_argument("--market", choices=["us", "cn"], default="us")
+    parser.add_argument("--factors", nargs="*", default=None,
+                        help="只检验指定因子（复检场景，须先在登记册预登记）")
+    parser.add_argument("--n-trials", type=int, default=None,
+                        help="DSR 试验次数覆盖（按登记册家族累计数）")
+    parser.add_argument("--report-to", default=None)
     args = parser.parse_args()
 
     membership_mask = None
@@ -136,13 +145,21 @@ def main() -> int:
                 "退市成员价格不可得的残余幸存者偏差仍存在")
         target = PROJECT_DIR / "docs" / "results" / "09-us-factor-tests.md"
     else:
-        from quantlab.cn_data import load_cn_daily
+        from quantlab.cn_data import cn_membership_mask, load_cn_daily
         data = load_cn_daily()
+        monthly_index = month_end(data["close"]).index
+        membership_mask = cn_membership_mask(monthly_index, data["close"].columns)
         label = "A 股 沪深 300"
-        note = "沪深 300 当前成分（幸存者偏差已声明，见登记册）"
+        note = ("沪深 300 点时成分掩码已应用（baostock 月末快照）"
+                if membership_mask is not None
+                else "沪深 300 当前成分（幸存者偏差已声明，见登记册）")
         target = PROJECT_DIR / "docs" / "results" / "10-cn-factor-tests.md"
 
-    rows, verdicts = run_family(data, membership_mask)
+    if args.report_to:
+        target = PROJECT_DIR / args.report_to
+    rows, verdicts = run_family(data, membership_mask,
+                                only_factors=args.factors,
+                                n_trials_override=args.n_trials)
     report = render(label, note, rows, verdicts)
     target.write_text(report + "\n")
     print(report)
