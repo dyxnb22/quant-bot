@@ -28,6 +28,25 @@ def momentum_12_1(close_monthly: pd.DataFrame) -> pd.DataFrame:
     return close_monthly.shift(1) / close_monthly.shift(12) - 1
 
 
+def short_reversal_1m(close_monthly: pd.DataFrame) -> pd.DataFrame:
+    """1 月短反转：负的最近一个月收益（上月输家预期反弹）。"""
+    return -(close_monthly / close_monthly.shift(1) - 1)
+
+
+def low_volatility(close_daily: pd.DataFrame, window: int = 60) -> pd.DataFrame:
+    """低波动：负的过去 60 交易日日收益标准差（低波动异象为正向溢价）。"""
+    volatility = close_daily.pct_change().rolling(window, min_periods=40).std()
+    return -volatility.resample("ME").last()
+
+
+def illiquidity(close_daily: pd.DataFrame, volume_daily: pd.DataFrame,
+                window: int = 60) -> pd.DataFrame:
+    """非流动性：负的过去 60 交易日日均成交额对数（流动性溢价方向）。"""
+    import numpy as np
+    dollar_volume = (close_daily * volume_daily).rolling(window, min_periods=40).mean()
+    return -np.log(dollar_volume).resample("ME").last()
+
+
 def forward_1m(close_monthly: pd.DataFrame) -> pd.DataFrame:
     """t 期行 = t → t+1 的未来一个月收益。"""
     return close_monthly.shift(-1) / close_monthly - 1

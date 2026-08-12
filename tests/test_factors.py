@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 
-from quantlab.factors import forward_1m, momentum_12_1, month_end
+from quantlab.factors import (forward_1m, illiquidity, low_volatility,
+                              momentum_12_1, month_end, short_reversal_1m)
 
 
 def make_monthly(n=20):
@@ -44,3 +45,32 @@ def test_month_end_resample():
         index=pd.date_range("2024-01-01", periods=62, freq="B"))
     monthly = month_end(daily)
     assert monthly.index.is_month_end.all()
+
+
+def test_short_reversal_negates_last_month():
+    close = make_monthly()
+    factor = short_reversal_1m(close)
+    row = factor.iloc[-1]
+    assert row["DOWN"] > row["FLAT"] > row["UP"], "上月跌得越狠反转因子越高"
+
+
+def test_low_volatility_prefers_quiet_names():
+    n = 200
+    rng = np.random.default_rng(5)
+    dates = pd.date_range("2024-01-01", periods=n, freq="B")
+    quiet = 100 + np.cumsum(rng.normal(0, 0.1, n))
+    noisy = 100 + np.cumsum(rng.normal(0, 3.0, n))
+    close = pd.DataFrame({"QUIET": quiet, "NOISY": noisy}, index=dates)
+    factor = low_volatility(close)
+    row = factor.dropna().iloc[-1]
+    assert row["QUIET"] > row["NOISY"], "低波动标的因子值应更高"
+
+
+def test_illiquidity_prefers_thin_names():
+    n = 200
+    dates = pd.date_range("2024-01-01", periods=n, freq="B")
+    close = pd.DataFrame({"BIG": 100.0, "SMALL": 100.0}, index=dates)
+    volume = pd.DataFrame({"BIG": 1e9, "SMALL": 1e5}, index=dates)
+    factor = illiquidity(close, volume)
+    row = factor.dropna().iloc[-1]
+    assert row["SMALL"] > row["BIG"], "成交额越小非流动性因子越高"
