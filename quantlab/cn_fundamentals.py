@@ -132,12 +132,25 @@ def build_roe_panel(daily_index: pd.DatetimeIndex,
     return pd.DataFrame(columns, index=daily_index)
 
 
+MIN_TICKER_COVERAGE = 0.90
+
+
 def load_roe_panel(daily_index: pd.DatetimeIndex,
                    data_dir: Path) -> pd.DataFrame:
+    """覆盖率守卫：断点续传按字母序推进，残缺数据 = 有偏子集（沪市老票在前），
+    覆盖 <90% 时拒绝加载而不是静默出有偏结果。"""
     target = fundamentals_path(data_dir)
     if not target.exists():
         raise FileNotFoundError(f"{target} 缺失：先运行深夜财报下载")
-    return build_roe_panel(daily_index, pd.read_feather(target))
+    records = pd.read_feather(target)
+    close = pd.read_feather(data_dir / "close.feather")
+    universe = {c for c in close.columns if c != close.columns[0]}
+    coverage = len(set(records["ticker"]) & universe) / len(universe)
+    if coverage < MIN_TICKER_COVERAGE:
+        raise RuntimeError(
+            f"财报覆盖率 {coverage:.0%} < {MIN_TICKER_COVERAGE:.0%}（下载未完成），"
+            f"拒绝在有偏子集上出结果；等深夜任务续传完成")
+    return build_roe_panel(daily_index, records)
 
 
 def main() -> int:

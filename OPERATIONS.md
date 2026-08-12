@@ -93,7 +93,7 @@ make ft-bias-check  # 涉及策略逻辑变更时：官方前视/递归偏差检
 
 | 触发条件 | 动作 |
 |---|---|
-| 深夜财报下载完成（`cn|cn500/fundamentals.feather` 齐备，看 `user_data/logs/cn_fundamentals.log`） | `make factors-cn-roe`（cn #12 已预登记，报告 22 号）；若 PASS 再评估 zz500 空间 OOS |
+| 22 号报告自动生成（06:30 任务，看 `user_data/logs/cn_roe_eval.log`） | 人工复核解读 → 登记册状态更新 → 提交；若 PASS 再评估 zz500 空间 OOS（cn500 计数 +1） |
 | G5 满 12 期 且 G1 达标 | 进入真实资金讨论（另立风险评估，含交易所端止损/子账户/资金上限） |
 | 复合候选前向 6+ 期且明显优于动量 | 评估月度清单主候选切换（预登记决策标准先行） |
 | 对账样本 ≥30 笔 | 对账升级为订单事件级 + 名义加权统计 |

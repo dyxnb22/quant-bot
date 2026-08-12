@@ -13,7 +13,8 @@
 | `com.quantbot.health` | 每 15 分钟 | 服务/进程/API/日志心跳巡检，连续 ≥2 次失败弹 macOS 通知 | `user_data/logs/health.log`（失败计数 `health_fail_streak`） |
 | `com.quantbot.brief` | 每天 09:00 | LLM 值班日报（状态+持仓+24h 行情 → 风险观察） | `user_data/logs/daily_brief/YYYY-MM-DD.md`（launchd 输出 `daily_brief/launchd.log`） |
 | `com.quantbot.cndownload` | 深夜 02:30（按需安装，成功后自卸载） | A 股行情断点续传下载 | 数据 `user_data/data/cn|cn500/`；日志 `user_data/logs/cn_download.log` |
-| `com.quantbot.cnfundamentals` | 深夜 02:30（按需安装，成功后自卸载） | A 股季频财报下载（点时 ROE，hs300→zz500） | 数据 `user_data/data/cn|cn500/fundamentals.feather`；日志 `user_data/logs/cn_fundamentals.log` |
+| `com.quantbot.cnfundamentals` | 深夜 02:30（按需安装，成功后自卸载；限流时检查点退出待续传） | A 股季频财报下载（点时 ROE，hs300→zz500） | 数据 `user_data/data/cn|cn500/fundamentals.feather`；日志 `user_data/logs/cn_fundamentals.log` |
+| `com.quantbot.cnroeeval` | 每天 06:30（数据齐即出报告并自卸载） | A 股 roe_pit 检验（覆盖率 <90% 拒跑，防有偏子集） | 报告 `docs/results/22-cn-roe.md`；日志 `user_data/logs/cn_roe_eval.log` |
 
 ### 手动（你启动的）
 

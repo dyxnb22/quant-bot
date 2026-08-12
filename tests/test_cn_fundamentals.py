@@ -35,3 +35,17 @@ def test_panel_staleness_expiry():
     panel = build_roe_panel(daily, make_records())
     assert panel.loc["2025-10-15", "sh.600000"] == 0.07, "两季内有效"
     assert pd.isna(panel.loc["2026-03-25", "sh.600000"]), "超限过期为 NaN"
+
+
+def test_load_roe_panel_coverage_guard(tmp_path):
+    """下载未完成（覆盖率不足）→ 拒绝加载，防有偏子集出结果。"""
+    import pytest
+
+    from quantlab.cn_fundamentals import load_roe_panel
+    close = pd.DataFrame({"date": pd.date_range("2025-01-01", periods=3),
+                          **{f"sh.60000{i}": 1.0 for i in range(10)}})
+    close.to_feather(tmp_path / "close.feather")
+    make_records().to_feather(tmp_path / "fundamentals.feather")  # 仅覆盖 2/10
+    daily = pd.date_range("2025-01-01", periods=3, freq="B")
+    with pytest.raises(RuntimeError, match="覆盖率"):
+        load_roe_panel(daily, tmp_path)
