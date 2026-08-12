@@ -88,12 +88,18 @@ def main() -> int:
         failures.append("API 可达性")
 
     timestamp = datetime.now().strftime("%F %T")
+    streak_file = PROJECT_DIR / "user_data" / "logs" / "health_fail_streak"
     if failures:
-        message = "、".join(failures) + " 异常"
+        streak = int(streak_file.read_text() or 0) + 1 if streak_file.exists() else 1
+        streak_file.parent.mkdir(parents=True, exist_ok=True)
+        streak_file.write_text(str(streak))
+        message = "、".join(failures) + f" 异常（连续第 {streak} 次）"
         print(f"[{timestamp}] FAIL: {message}")
-        if args.notify:
+        # 去抖：连续 ≥2 次失败才通知（单次抖动如 bot 重启窗口不告警）
+        if args.notify and streak >= 2:
             notify(message)
         return 1
+    streak_file.unlink(missing_ok=True)
     print(f"[{timestamp}] OK: 服务/进程/API/日志 全部正常")
     return 0
 
