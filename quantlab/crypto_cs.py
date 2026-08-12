@@ -94,9 +94,11 @@ def fetch_symbol_daily(symbol: str, workers: int = 8) -> pd.DataFrame:
     if not rows:
         return pd.DataFrame(columns=["date", "close", "dollar_volume"])
     frame = pd.DataFrame(rows, columns=["ts", "close", "dollar_volume"])
-    # open_time 毫秒或微秒（2025 起归档为微秒），按量级判别
-    unit = "us" if frame["ts"].iloc[-1] > 10 ** 14 else "ms"
-    frame["date"] = pd.to_datetime(frame["ts"], unit=unit).dt.normalize()
+    # open_time 单位混用：2025 起归档为微秒、此前为毫秒——必须逐行判别
+    # （按整列末行判别会把旧月份解析到 1970，2026-08-12 实测踩坑）
+    import numpy as np
+    micros = np.where(frame["ts"] > 10 ** 14, frame["ts"], frame["ts"] * 1000)
+    frame["date"] = pd.to_datetime(micros, unit="us").normalize()
     return frame[["date", "close", "dollar_volume"]].drop_duplicates("date")
 
 
