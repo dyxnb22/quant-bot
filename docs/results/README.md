@@ -26,4 +26,5 @@
 | [20-crypto-ex-winners](20-crypto-ex-winners.md) | 因子初检报告：加密截面（Binance USDT） |
 | [21-us-roe](21-us-roe.md) | 因子初检报告：美股 S&P 500 |
 | [22-cn-roe](22-cn-roe.md) | 因子初检报告：A 股 沪深 300 |
+| [23-pit-audit](23-pit-audit.md) | 点时可信度审计（pubDate / filed 规则检查） |
 | [factor-registry](factor-registry.md) | 因子登记册（living doc） |

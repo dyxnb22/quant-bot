@@ -24,6 +24,7 @@
 | `make recon` | 每周（平仓样本增长后） | dry-run 成交 vs 回测假设对账 | `docs/results/06-trade-recon.md` |
 | 晨间 Runbook（见 OPERATIONS §2） | 每月第一个交易日 | A 股数据校验 → 三候选清单入账本 → 月报 | 账本 `docs/research/cn-momentum/forward-ledger.jsonl`（append-only，G5 唯一证据源）；清单 `docs/research/cn-momentum/YYYY-MM.md` |
 | `make gates` | 每季度 | 三候选 Deployment Gate G1-G5 复查 | `docs/results/14-deployment-gate*.md` |
+| `make pit-audit` | 财报数据刷新后 | 点时可信度审计（公告日/申报日规则检查） | `docs/results/23-pit-audit.md` |
 | `make check` | 改代码后 | ruff + 全量测试 + 风险审计 + 数据质量 | 终端输出（CI 同款） |
 
 ### 数据目录速查
@@ -42,3 +43,4 @@
 | 启动时间 | 命令 | 结果 | 详情位置 |
 |---|---|---|---|
 | 2026-08-12 22:32 | make daily | 5/5 通过 | `docs/research/daily-log.md` § 2026-08-12 22:32 |
+| 2026-08-13 09:27 | make daily | 5/5 通过 | `docs/research/daily-log.md` § 2026-08-13 09:27 |

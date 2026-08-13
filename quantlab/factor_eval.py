@@ -6,6 +6,7 @@
 """
 
 import argparse
+import math
 import sys
 from datetime import datetime
 
@@ -82,6 +83,13 @@ def evaluate_factor(factor: pd.DataFrame, forward: pd.DataFrame,
     }
 
 
+def power_months(n_obs: int, nw_t: float, target_t: float = 1.645) -> int | None:
+    """协议 v4：效应量保持不变的前提下，单侧 5% 显著约需的总月数（t ∝ √n）。"""
+    if nw_t <= 0:
+        return None
+    return math.ceil(n_obs * (target_t / nw_t) ** 2)
+
+
 def verdict(metrics: dict, bh_significant: bool) -> str:
     # 边界比较前消浮点噪声：spearmanr 对精确 0.8 的秩相关返回 0.7999...9
     # （2026-08-13 cn roe_pit 实测），不消噪会在阈值上误判
@@ -91,9 +99,16 @@ def verdict(metrics: dict, bh_significant: bool) -> str:
                  and metrics["net_mean"] > 0
                  and monotonicity >= 0.8)
     if bh_significant and hard_pass:
+        # 协议 v4-1：可实施性标注——多头腿为负的 PASS 不产生候选
+        layers = metrics.get("layers") or []
+        if layers and layers[-1] <= 0:
+            return "PASS（研究性——多头腿月均为负，不可实施，不产生候选）"
         return "PASS（初检）"
     if hard_pass:
-        return "INCONCLUSIVE（方向成立但校正后不显著，待更长样本）"
+        # 协议 v4-3：功效估计
+        needed = power_months(metrics["months"], metrics.get("ic_nw_t", 0.0))
+        note = f"；效应保持下约需 {needed} 月总样本可分辨" if needed else ""
+        return f"INCONCLUSIVE（方向成立但校正后不显著{note}）"
     return "REJECTED（初检）"
 
 
@@ -111,6 +126,13 @@ def run_family(data: dict, market: str,
     if missing:
         raise RuntimeError(f"数据缺少所需扩展字段，无法检验: "
                            f"{ {k: FACTOR_REQUIRES[k] for k in missing} }")
+    # 协议 v4-2 基线：宇宙本身可用的月数（≥MIN_NAMES 名/月，因子无关）
+    close_monthly = month_end(data["close"])
+    if membership_mask is not None:
+        close_monthly = close_monthly.where(
+            membership_mask.reindex(close_monthly.index).fillna(False))
+    universe_months = int((close_monthly.notna().sum(axis=1)
+                           >= MIN_NAMES_PER_MONTH).sum())
     rows = []
     for name, builder in builders.items():
         factor = builder(data)
@@ -118,6 +140,7 @@ def run_family(data: dict, market: str,
             factor = factor.where(membership_mask.reindex(factor.index).fillna(False))
         metrics = evaluate_factor(factor, forward)
         metrics["factor"] = name
+        metrics["universe_months"] = universe_months
         rows.append(metrics)
     # 协议 v3：显著性 = NW-p 过 BH（序列相关稳健）；置换 p 保留为信息列
     significant = benjamini_hochberg([r["nw_p"] for r in rows], alpha=0.05)
@@ -157,6 +180,18 @@ def render(market_label: str, universe_note: str, rows: list[dict],
     ]
     for row in rows:
         lines.append(f"- {row['factor']}: " + " / ".join(f"{x:+.3%}" for x in row["layers"]))
+    # 协议 v4-2：样本塌缩警报（有效月数 < 宇宙可用月数的 70%）
+    warnings = [row for row in rows
+                if row.get("universe_months")
+                and row["months"] < 0.7 * row["universe_months"]]
+    if warnings:
+        lines += [""]
+        for row in warnings:
+            lines.append(
+                f"> ⚠ 样本塌缩警报：{row['factor']} 有效样本 {row['months']} 月，"
+                f"仅为宇宙可用月数（{row['universe_months']}）的 "
+                f"{row['months'] / row['universe_months']:.0%}——"
+                f"留存窗口可能有行情偏斜，结论置信按小样本降权")
     return "\n".join(lines)
 
 

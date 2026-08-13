@@ -33,7 +33,46 @@ def test_run_checks_isolates_failures(monkeypatch):
     monkeypatch.setattr(daily_check, "_check_paper_account", lambda: (True, "ok"))
     monkeypatch.setattr(daily_check, "_check_data_quality", lambda: (True, "ok"))
     monkeypatch.setattr(daily_check, "_check_forward_ledger", lambda: (True, "ok"))
+    monkeypatch.setattr(daily_check, "_check_transient_jobs", lambda: (True, "ok"))
     rows = daily_check.run_checks(update_data=False)
-    assert len(rows) == 4
+    assert len(rows) == 5
     assert rows[0]["ok"] is False and "boom" in rows[0]["detail"]
     assert all(r["ok"] for r in rows[1:])
+
+
+def test_parse_launchctl():
+    text = ("PID\tStatus\tLabel\n"
+            "72261\t0\tcom.quantbot.dryrun\n"
+            "-\t75\tcom.quantbot.cnfundamentals\n"
+            "-\t1\tcom.quantbot.cnroeeval\n"
+            "500\t0\tcom.apple.something\n")
+    jobs = daily_check.parse_launchctl(text)
+    assert jobs["com.quantbot.dryrun"] == ("72261", "0")
+    assert jobs["com.quantbot.cnfundamentals"] == ("-", "75")
+    assert "com.apple.something" not in jobs
+
+
+def test_transient_jobs_check(monkeypatch, tmp_path):
+    """exit 75（限流续传）与运行中 = 正常；其他非零退出 = FAIL。"""
+    log = tmp_path / "cn_fundamentals.log"
+    log.write_text("login success!\n  142/1271 已落盘（累计 5485 行）\n")
+    monkeypatch.setattr(daily_check, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(daily_check, "TRANSIENT_JOBS",
+                        {"com.quantbot.cnfundamentals": ("A股财报下载",
+                                                         "cn_fundamentals.log")})
+
+    def fake_run(cmd, **kw):
+        class R:
+            stdout = "-\t75\tcom.quantbot.cnfundamentals\n"
+        return R()
+    monkeypatch.setattr(daily_check.subprocess, "run", fake_run)
+    ok, detail = daily_check._check_transient_jobs()
+    assert ok is True and "142/1271" in detail and "75" in detail
+
+    def fake_run_bad(cmd, **kw):
+        class R:
+            stdout = "-\t1\tcom.quantbot.cnfundamentals\n"
+        return R()
+    monkeypatch.setattr(daily_check.subprocess, "run", fake_run_bad)
+    ok, detail = daily_check._check_transient_jobs()
+    assert ok is False and "退出码 1" in detail

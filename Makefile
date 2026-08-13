@@ -59,6 +59,9 @@ factors-cn-roe: ## A股 roe_pit 检验（预登记 cn #12，需深夜财报落�
 	.venv/bin/python -m quantlab.factor_eval --market cn --factors roe_pit \
 		--report-to docs/results/22-cn-roe.md
 
+pit-audit: ## 点时可信度审计（pubDate/filed 规则检查，财报刷新后例行）
+	.venv/bin/python -m quantlab.pit_audit
+
 gates: ## 三候选 Deployment Gate 全跑（季度复查）
 	-.venv/bin/python -m quantlab.deployment_gate --rule momentum
 	-.venv/bin/python -m quantlab.deployment_gate --rule composite

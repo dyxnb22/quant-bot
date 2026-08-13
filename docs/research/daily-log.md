@@ -16,3 +16,15 @@
 
 结论：5/5 通过。溯源: commit 075914b+dirty | 数据指纹 sha1:6d59d23089 | 命令 `/Users/diaoyuxuan/quant-bot/quantlab/daily_check.py` | 2026-08-12 22:32:31
 
+## 2026-08-13 09:27
+
+| 检查 | 结果 | 详情 |
+|---|---|---|
+| 模拟盘健康（服务/进程/心跳/API） | ✓ | launchd✓ 进程✓ 日志心跳✓ API✓ |
+| 模拟盘账面（实时 API） | ✓ | 平仓 1 笔 | 已实现 -5.18 USDT | 胜率 0% | 最大回撤 0.05% | 持仓 0 笔 | 对账样本 1/30 |
+| 数据质量（币市 K 线 + 股市面板） | ✓ | 7 项全部通过 |
+| 前向账本（三候选 G5 进度） | ✓ | G5 前向进度：momentum 1/12，composite 1/12，cn500_composite 1/12 |
+| 临时任务（深夜下载/自动评估） | ✓ | A股财报下载: 待定时（上次退出码 75），限流嫌疑（连续 2 个标的 >90s），已存检查点 142/1271，退出待深夜续传 |
+
+结论：5/5 通过。溯源: commit 180cd95+dirty | 数据指纹 sha1:dddf6582eb | 命令 `/Users/diaoyuxuan/quant-bot/quantlab/daily_check.py --no-data-update` | 2026-08-13 09:27:32
+
