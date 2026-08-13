@@ -25,4 +25,5 @@
 | [19-robustness-disclosure](19-robustness-disclosure.md) | 稳健性披露：块自助对照 + 参数平原（不择优） |
 | [20-crypto-ex-winners](20-crypto-ex-winners.md) | 因子初检报告：加密截面（Binance USDT） |
 | [21-us-roe](21-us-roe.md) | 因子初检报告：美股 S&P 500 |
+| [22-cn-roe](22-cn-roe.md) | 因子初检报告：A 股 沪深 300 |
 | [factor-registry](factor-registry.md) | 因子登记册（living doc） |

@@ -83,9 +83,13 @@ def evaluate_factor(factor: pd.DataFrame, forward: pd.DataFrame,
 
 
 def verdict(metrics: dict, bh_significant: bool) -> str:
-    hard_pass = (metrics["consistency"] >= 0.6
+    # 边界比较前消浮点噪声：spearmanr 对精确 0.8 的秩相关返回 0.7999...9
+    # （2026-08-13 cn roe_pit 实测），不消噪会在阈值上误判
+    consistency = round(metrics["consistency"], 9)
+    monotonicity = round(metrics["monotonicity"], 9)
+    hard_pass = (consistency >= 0.6
                  and metrics["net_mean"] > 0
-                 and metrics["monotonicity"] >= 0.8)
+                 and monotonicity >= 0.8)
     if bh_significant and hard_pass:
         return "PASS（初检）"
     if hard_pass:
